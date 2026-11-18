@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>用户</h1>
+        <p class="sub">共 {{ stats.users }} 个用户，{{ stats.enabled_users }} 个启用同步；头像 {{ stats.avatars }} 个</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn-ghost" type="button" id="refreshAvatars">刷新头像</button>
+        <button class="btn-primary" type="button" id="syncAll">同步全部启用用户</button>
+    </div>
+</section>
+
+<section class="panel" id="usersPage">
+    <div class="panel-head">
+        <div>
+            <h2>添加用户</h2>
+            <p class="sub">输入 UID 或 space.bilibili.com 链接</p>
+        </div>
+        <form class="inline-form" id="addUserForm">
+            <input type="text" class="input" id="addUserInput" placeholder="例如 123456789 或 space.bilibili.com/123456789" autocomplete="off">
+            <button class="btn-primary" type="submit">添加</button>
+        </form>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="toolbar">
+        <label class="check"><input type="checkbox" id="selectAllUsers"> 全选</label>
+        <span class="toolbar-sep"></span>
+        <button class="btn-ghost" type="button" id="syncSelected">同步选中</button>
+        <button class="btn-ghost" type="button" id="retrySelected">重试选中</button>
+        <button class="btn-ghost" type="button" id="retryAll">重试全部</button>
+        <label class="check"><input type="checkbox" id="fullSync"> 全量历史</label>
+        <span class="toolbar-hint">可重试：缺失 {{ retry_counts.get('missing', 0) }} / 失败 {{ retry_counts.get('failed', 0) }} / 待下载 {{ retry_counts.get('pending', 0) }}</span>
+    </div>
+
+    <div class="user-table">
+        <div class="user-row user-head">
+            <span></span>
+            <span>用户</span>
+            <span>数据</span>
+            <span>状态</span>
+            <span>操作</span>
+        </div>
+        {% for u in user_rows %}
+        <div class="user-row {% if not u.enabled %}is-disabled{% endif %}" data-uid="{{ u.uid }}">
+            <span><input type="checkbox" class="user-check" value="{{ u.uid }}"></span>
+            <div class="user-cell">
+                <span class="avatar" style="--hue: {{ u.uid % 360 }}">
+                    <img src="{{ url_for('avatar', uid=u.uid, v=u.avatar_updated_at or 0) }}" alt="">
+                </span>
+                <div class="user-name-box">
+                    <a class="user-name" href="{{ url_for('user_page', uid=u.uid) }}">{{ u.name }}</a>
+                    <span class="user-uid">UID {{ u.uid }}</span>
+                </div>
+            </div>
+            <div class="user-data">
+                <span>{{ u.image_post_count }} 条</span>
+                <span class="muted">{{ u.image_count }} 图</span>
+                {% if u.last_sync_at %}<span class="muted">上次 {{ u.last_sync_at|timestamp_time }}</span>{% endif %}
+            </div>
+            <div>
+                <button class="toggle {% if u.enabled %}on{% endif %}" type="button" data-toggle="{{ u.uid }}" data-enabled="{{ 1 if u.enabled else 0 }}">
+                    <span class="toggle-knob"></span>
+                    <span class="toggle-label">{{ '已启用' if u.enabled else '已停用' }}</span>
+                </button>
+            </div>
+            <div class="user-actions">
+                <button class="btn-mini" type="button" data-sync="{{ u.uid }}">同步</button>
+                <button class="btn-mini" type="button" data-retry="{{ u.uid }}">重试</button>
+                <a class="btn-mini ghost" href="{{ url_for('user_page', uid=u.uid) }}">画廊</a>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty">还没有用户，先在上面添加一个 UID。</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/users.js') }}" defer></script>{% endblock %}

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from .models import ImageRecord, PostRecord
 from .utils import format_ts
@@ -31,8 +34,49 @@ class Database:
             self.init_schema()
 
     def init_schema(self) -> None:
+        has_users = bool(
+            self.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
+            ).fetchone()
+        )
+        version = int(self.conn.execute("PRAGMA user_version").fetchone()[0])
+        if has_users and version < 4:
+            self._backup_before_upgrade(version)
         schema = (Path(__file__).with_name("schema.sql")).read_text(encoding="utf-8")
         self.conn.executescript(schema)
+        self._ensure_user_columns()
+        self.conn.execute("PRAGMA user_version = 4")
+
+    def _backup_before_upgrade(self, version: int) -> None:
+        backup_dir = self.path.parent / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        target = backup_dir / f"bili-before-v4-{time.strftime('%Y%m%d-%H%M%S')}.db"
+        try:
+            destination = sqlite3.connect(str(target))
+            try:
+                self.conn.backup(destination)
+            finally:
+                destination.close()
+            logger.warning("数据库升级前已备份：%s（旧版本 %s）", target, version)
+        except Exception as exc:
+            logger.error("数据库备份失败：%s", exc)
+
+    def _ensure_user_columns(self) -> None:
+        columns = {
+            "enabled": "INTEGER NOT NULL DEFAULT 1",
+            "avatar_file": "TEXT NOT NULL DEFAULT ''",
+            "avatar_source": "TEXT NOT NULL DEFAULT ''",
+            "avatar_updated_at": "INTEGER",
+            "sort_order": "INTEGER NOT NULL DEFAULT 0",
+        }
+        existing = {
+            row["name"] for row in self.conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        for name, ddl in columns.items():
+            if name not in existing:
+                self.conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+        if "enabled" not in existing:
+            self.conn.execute("UPDATE users SET enabled = 1")
 
     def close(self) -> None:
         try:
@@ -58,19 +102,31 @@ class Database:
         name: str = "",
         avatar_url: str = "",
         image_dir: str = "",
+        enabled: bool | None = None,
     ) -> None:
         now = int(time.time())
+        enabled_value = None if enabled is None else (1 if enabled else 0)
         self.conn.execute(
             """
-            INSERT INTO users(uid, name, avatar_url, image_dir, created_at, updated_at)
-            VALUES(?, ?, ?, ?, ?, ?)
+            INSERT INTO users(uid, name, avatar_url, image_dir, enabled, created_at, updated_at)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(uid) DO UPDATE SET
                 name = CASE WHEN excluded.name <> '' THEN excluded.name ELSE users.name END,
                 avatar_url = CASE WHEN excluded.avatar_url <> '' THEN excluded.avatar_url ELSE users.avatar_url END,
                 image_dir = CASE WHEN excluded.image_dir <> '' THEN excluded.image_dir ELSE users.image_dir END,
+                enabled = COALESCE(?, users.enabled),
                 updated_at = excluded.updated_at
             """,
-            (uid, name or "", avatar_url or "", image_dir or "", now, now),
+            (
+                uid,
+                name or "",
+                avatar_url or "",
+                image_dir or "",
+                1 if enabled_value is None else enabled_value,
+                now,
+                now,
+                enabled_value,
+            ),
         )
 
     def get_user(self, uid: int):
@@ -84,6 +140,39 @@ class Database:
             "UPDATE users SET image_dir = ?, updated_at = ? WHERE uid = ?",
             (image_dir, int(time.time()), uid),
         )
+
+    def set_user_enabled(self, uid: int, enabled: bool) -> None:
+        self.conn.execute(
+            "UPDATE users SET enabled = ?, updated_at = ? WHERE uid = ?",
+            (1 if enabled else 0, int(time.time()), uid),
+        )
+
+    def set_user_avatar(
+        self, uid: int, avatar_file: str, avatar_source: str, updated_at: int | None = None
+    ) -> None:
+        self.conn.execute(
+            """
+            UPDATE users SET avatar_file = ?, avatar_source = ?,
+                avatar_updated_at = ?, updated_at = ?
+            WHERE uid = ?
+            """,
+            (
+                avatar_file or "",
+                avatar_source or "",
+                int(updated_at or time.time()),
+                int(time.time()),
+                uid,
+            ),
+        )
+
+    def list_users_for_sync(self) -> list:
+        return self.conn.execute(
+            """
+            SELECT * FROM users
+            WHERE enabled = 1
+            ORDER BY sort_order, name COLLATE NOCASE, uid
+            """
+        ).fetchall()
 
     def set_last_dynamic_id(self, uid: int, dynamic_id: int | str, synced_at: int | None = None) -> None:
         value = str(int(dynamic_id))
@@ -105,14 +194,14 @@ class Database:
     def list_users_with_counts(self):
         return self.conn.execute(
             """
-            SELECT u.uid, u.name, u.avatar_url, u.image_dir, u.last_sync_at,
-                   u.last_dynamic_id,
+            SELECT u.uid, u.name, u.avatar_url, u.avatar_file, u.avatar_updated_at,
+                   u.image_dir, u.last_sync_at, u.last_dynamic_id, u.enabled,
                    COALESCE(SUM(CASE WHEN p.image_count > 0 THEN 1 ELSE 0 END), 0) AS image_post_count,
                    COALESCE(SUM(p.image_count), 0) AS image_count
             FROM users u
             LEFT JOIN posts p ON p.uid = u.uid
             GROUP BY u.uid
-            ORDER BY u.name COLLATE NOCASE, u.uid
+            ORDER BY u.sort_order, u.name COLLATE NOCASE, u.uid
             """
         ).fetchall()
 
@@ -238,7 +327,7 @@ class Database:
         direction = "ASC" if str(sort).lower() == "asc" else "DESC"
         rows = self.conn.execute(
             f"""
-            SELECT p.*, u.name, u.avatar_url, u.image_dir
+            SELECT p.*, u.name, u.avatar_url, u.avatar_file, u.avatar_updated_at, u.image_dir
             FROM posts p JOIN users u ON u.uid = p.uid
             WHERE {where}
             ORDER BY p.published_at {direction}, p.id {direction}
@@ -322,6 +411,36 @@ class Database:
             ),
         )
 
+    def get_images_for_post(
+        self, post_id: int, statuses: tuple[str, ...] = ("pending", "failed", "missing")
+    ) -> list[dict]:
+        placeholders = ",".join("?" for _ in statuses)
+        rows = self.conn.execute(
+            f"""
+            SELECT i.*, u.uid, u.image_dir, p.published_at, p.dynamic_id
+            FROM images i
+            JOIN posts p ON p.id = i.post_id
+            JOIN users u ON u.uid = p.uid
+            WHERE i.post_id = ? AND i.status IN ({placeholders})
+            ORDER BY i.id
+            """,
+            (int(post_id), *statuses),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_retry_counts(self, uid: int | None = None) -> dict[str, int]:
+        sql = """
+            SELECT i.status, COUNT(*) AS n
+            FROM images i JOIN posts p ON p.id = i.post_id
+            WHERE 1=1
+        """
+        params: list = []
+        if uid:
+            sql += " AND p.uid = ?"
+            params.append(int(uid))
+        sql += " GROUP BY i.status"
+        return {row["status"]: int(row["n"]) for row in self.conn.execute(sql, params)}
+
     def get_images_for_posts(self, post_ids: list[int]) -> list[dict]:
         if not post_ids:
             return []
@@ -346,6 +465,7 @@ class Database:
         limit: int = 0,
         statuses: tuple[str, ...] = ("pending", "failed", "missing"),
         max_attempts: int = 5,
+        uids: list[int] | None = None,
     ) -> list[dict]:
         placeholders = ",".join("?" for _ in statuses)
         sql = f"""
@@ -356,7 +476,11 @@ class Database:
             WHERE i.status IN ({placeholders}) AND i.attempts < ?
         """
         params: list = [*statuses, int(max_attempts)]
-        if uid:
+        if uids:
+            marks = ",".join("?" for _ in uids)
+            sql += f" AND p.uid IN ({marks})"
+            params.extend(int(value) for value in uids)
+        elif uid:
             sql += " AND p.uid = ?"
             params.append(int(uid))
         sql += " ORDER BY i.id"
@@ -392,6 +516,58 @@ class Database:
         sql += " ORDER BY i.id"
         return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
 
+    # ---------------- jobs ----------------
+
+    def create_job(self, kind: str, target: str = "") -> int:
+        row = self.conn.execute(
+            "INSERT INTO jobs(kind, target, status, created_at) VALUES(?, ?, 'queued', ?) RETURNING id",
+            (kind, target or "", int(time.time())),
+        ).fetchone()
+        return int(row["id"])
+
+    def update_job(self, job_id: int, **fields) -> None:
+        allowed = {
+            "status", "started_at", "finished_at", "total", "done",
+            "message", "log_path", "error",
+        }
+        updates = {key: value for key, value in fields.items() if key in allowed}
+        if not updates:
+            return
+        assignments = ", ".join(f"{key} = ?" for key in updates)
+        self.conn.execute(
+            f"UPDATE jobs SET {assignments} WHERE id = ?",
+            (*updates.values(), int(job_id)),
+        )
+
+    def get_job(self, job_id: int):
+        return self.conn.execute("SELECT * FROM jobs WHERE id = ?", (int(job_id),)).fetchone()
+
+    def list_jobs(self, limit: int = 50) -> list:
+        return self.conn.execute(
+            "SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (int(limit),)
+        ).fetchall()
+
+    def active_job(self):
+        return self.conn.execute(
+            """
+            SELECT * FROM jobs
+            WHERE status IN ('queued', 'running', 'cancelling')
+            ORDER BY id DESC LIMIT 1
+            """
+        ).fetchone()
+
+    def mark_interrupted_jobs(self) -> int:
+        row = self.conn.execute(
+            """
+            UPDATE jobs SET status = 'interrupted', finished_at = ?,
+                message = '服务重启，任务被中断'
+            WHERE status IN ('queued', 'running', 'cancelling')
+            RETURNING id
+            """,
+            (int(time.time()),),
+        ).fetchall()
+        return len(row)
+
     # ---------------- stats / runs ----------------
 
     def stats(self) -> dict:
@@ -399,6 +575,8 @@ class Database:
             """
             SELECT
                 (SELECT COUNT(*) FROM users) AS users,
+                (SELECT COUNT(*) FROM users WHERE enabled = 1) AS enabled_users,
+                (SELECT COUNT(*) FROM users WHERE avatar_file <> '') AS avatars,
                 (SELECT COUNT(*) FROM posts) AS posts,
                 (SELECT COUNT(*) FROM posts WHERE image_count > 0) AS image_posts,
                 (SELECT COUNT(*) FROM posts WHERE kind = 'charge' AND image_count = 0) AS charge_posts,
@@ -406,6 +584,7 @@ class Database:
                 (SELECT COUNT(*) FROM images WHERE status = 'ok') AS ok_images,
                 (SELECT COUNT(*) FROM images WHERE status IN ('missing', 'failed')) AS missing_images,
                 (SELECT COUNT(*) FROM images WHERE status = 'dead') AS dead_images,
+                (SELECT COUNT(*) FROM images WHERE status = 'pending') AS pending_images,
                 (SELECT COALESCE(SUM(local_size), 0) FROM images) AS bytes
             """
         ).fetchone()

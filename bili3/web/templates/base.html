@@ -23,11 +23,23 @@
             <span class="brand-mark">动</span>
             <span class="brand-text">动态画廊</span>
         </a>
+        <nav class="main-nav" aria-label="主导航">
+            <a class="{% if active_page == 'home' %}active{% endif %}" href="{{ url_for('index') }}">动态</a>
+            <a class="{% if active_page == 'users' %}active{% endif %}" href="{{ url_for('users_page') }}">用户</a>
+            <a class="{% if active_page == 'jobs' %}active{% endif %}" href="{{ url_for('jobs_page') }}">任务</a>
+            <a class="{% if active_page == 'settings' %}active{% endif %}" href="{{ url_for('settings_page') }}">设置</a>
+        </nav>
         <form class="search-form" action="{{ url_for('search') }}" method="get" role="search">
             <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
             <input type="search" name="q" value="{{ query or '' }}" placeholder="搜索动态、描述..." autocomplete="off" aria-label="搜索">
         </form>
         <div class="top-actions">
+            {% if active_job %}
+            <a class="job-pill" id="globalJobPill" href="{{ url_for('jobs_page') }}" title="当前任务">
+                <span class="job-dot"></span>
+                <span>{{ active_job.kind }}{% if active_job.total %} {{ active_job.done }}/{{ active_job.total }}{% endif %}</span>
+            </a>
+            {% endif %}
             <span class="stat-pill">{{ stats.image_posts }} 条图文</span>
             <button class="icon-btn" id="themeToggle" type="button" aria-label="切换深色模式" title="切换深色模式">
                 <span class="theme-icon">☾</span>
@@ -53,8 +65,7 @@
             {% for u in users %}
             <a class="side-user {% if current_uid == u.uid %}active{% endif %}" href="{{ url_for('user_page', uid=u.uid) }}">
                 <span class="avatar" style="--hue: {{ u.uid % 360 }}">
-                    {% if u.avatar_url %}<img src="{{ u.avatar_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">{% endif %}
-                    <span class="avatar-fallback">{{ (u.name or u.uid|string)[:1] }}</span>
+                    <img src="{{ url_for('avatar', uid=u.uid, v=u.avatar_updated_at or 0) }}" alt="">
                 </span>
                 <span class="side-user-info">
                     <span class="side-user-name" title="{{ u.name }}">{{ u.name }}</span>
@@ -89,6 +100,8 @@
     </div>
 </div>
 
+<div id="toastHost" class="toast-host" aria-live="polite"></div>
 <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

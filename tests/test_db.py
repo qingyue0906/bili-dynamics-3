@@ -70,6 +70,58 @@ def test_search_and_pagination(tmp_path):
     db.close()
 
 
+def test_user_enabled_avatar_and_jobs(tmp_path):
+    db = Database(tmp_path / "test.db")
+    db.upsert_user(1, name="Alice", image_dir=str(tmp_path / "images"), enabled=True)
+    db.upsert_user(2, name="Bob", image_dir=str(tmp_path / "images2"), enabled=False)
+    assert [row["uid"] for row in db.list_users_for_sync()] == [1]
+    db.set_user_enabled(2, True)
+    assert {row["uid"] for row in db.list_users_for_sync()} == {1, 2}
+    db.set_user_avatar(2, "2_abc.webp", "https://example.com/face.jpg", 123)
+    user = db.get_user(2)
+    assert user["avatar_file"] == "2_abc.webp"
+    assert user["avatar_updated_at"] == 123
+
+    job_id = db.create_job("test", "target")
+    db.update_job(job_id, status="running", total=10, done=2, message="working")
+    job = db.get_job(job_id)
+    assert job["status"] == "running"
+    assert job["done"] == 2
+    assert db.active_job()["id"] == job_id
+    db.update_job(job_id, status="succeeded", finished_at=1, message="done")
+    assert db.active_job() is None
+    assert db.list_jobs()[0]["id"] == job_id
+    db.close()
+
+
+def test_retry_counts(tmp_path):
+    db = Database(tmp_path / "test.db")
+    db.upsert_user(1, name="Alice", image_dir=str(tmp_path / "images"))
+    post = make_post(
+        images=[
+            ImageRecord(
+                url="https://x/ok.jpg",
+                url_clean="https://x/ok.jpg",
+                file_name="ok.jpg",
+                status="ok",
+            ),
+            ImageRecord(
+                url="https://x/missing.jpg",
+                url_clean="https://x/missing.jpg",
+                file_name="missing.jpg",
+                status="missing",
+            ),
+        ]
+    )
+    with db.transaction():
+        post_id = db.upsert_post(post)
+        db.upsert_images(post_id, post.images)
+    counts = db.get_retry_counts(1)
+    assert counts.get("ok") == 1
+    assert counts.get("missing") == 1
+    db.close()
+
+
 def test_last_dynamic_id_never_goes_backwards(tmp_path):
     db = Database(tmp_path / "test.db")
     db.upsert_user(1, name="Alice", image_dir=str(tmp_path / "images"))

@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS users (
     image_dir       TEXT NOT NULL DEFAULT '',
     last_dynamic_id TEXT NOT NULL DEFAULT '0',
     last_sync_at    INTEGER,
+    enabled         INTEGER NOT NULL DEFAULT 1,
+    avatar_file     TEXT NOT NULL DEFAULT '',
+    avatar_source   TEXT NOT NULL DEFAULT '',
+    avatar_updated_at INTEGER,
+    sort_order      INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL DEFAULT 0,
     updated_at      INTEGER NOT NULL DEFAULT 0
 );
@@ -67,4 +72,22 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 CREATE INDEX IF NOT EXISTS idx_sync_runs_uid ON sync_runs(uid, started_at DESC);
 
-PRAGMA user_version = 3;
+CREATE TABLE IF NOT EXISTS jobs (
+    id          INTEGER PRIMARY KEY,
+    kind        TEXT NOT NULL,
+    target      TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'queued',
+    created_at  INTEGER NOT NULL DEFAULT 0,
+    started_at  INTEGER,
+    finished_at INTEGER,
+    total       INTEGER NOT NULL DEFAULT 0,
+    done        INTEGER NOT NULL DEFAULT 0,
+    message     TEXT NOT NULL DEFAULT '',
+    log_path    TEXT NOT NULL DEFAULT '',
+    error       TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+
+PRAGMA user_version = 4;

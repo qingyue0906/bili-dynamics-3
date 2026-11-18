@@ -14,7 +14,6 @@ from .export import export_user
 from .models import ImageRecord, PostRecord
 from .sync import load_user_list
 from .utils import (
-    atomic_write_text,
     filename_from_url,
     normalize_download_url,
     parse_pub_time,
@@ -103,7 +102,6 @@ def migrate_v2(
     exclude: list[str] | None = None,
     uid_map: list[str] | None = None,
     limit_users: int = 0,
-    force_user_list: bool = False,
 ) -> MigrateStats:
     src = Path(src_dir).resolve()
     opus_root = src / "opus"
@@ -113,6 +111,8 @@ def migrate_v2(
     stats = MigrateStats()
     excluded = {item.strip() for item in (exclude or []) if item.strip()}
     mapping = _build_uid_map(src, _parse_uid_map(uid_map))
+    main_users = load_user_list(src / "user_list.txt")
+    enabled_uids = {uid for _, uid in main_users} if main_users else None
 
     folders = []
     for entry in sorted(opus_root.iterdir(), key=lambda p: p.name):
@@ -144,7 +144,12 @@ def migrate_v2(
 
         image_dir = str(folder.resolve())
         if not dry_run:
-            db.upsert_user(uid, name=name, image_dir=image_dir)
+            db.upsert_user(
+                uid,
+                name=name,
+                image_dir=image_dir,
+                enabled=(uid in enabled_uids) if enabled_uids is not None else None,
+            )
 
         user_posts = 0
         user_refs = 0
@@ -219,13 +224,6 @@ def migrate_v2(
         except Exception as exc:
             stats.errors.append(name)
             logger.exception("迁移用户 %s 失败：%s", name, exc)
-
-    if not dry_run and (force_user_list or not config.general.user_list.exists()):
-        main_users = load_user_list(src / "user_list.txt")
-        if main_users:
-            lines = [f"{name or uid}: {uid}" for name, uid in main_users]
-            atomic_write_text(config.general.user_list, "\n".join(lines) + "\n")
-            logger.info("已写入用户列表：%s", config.general.user_list)
 
     logger.info("")
     logger.info(

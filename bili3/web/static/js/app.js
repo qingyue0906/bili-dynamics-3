@@ -1,6 +1,36 @@
 (() => {
     'use strict';
 
+    async function api(url, payload) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Bili3': '1',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload || {})
+        });
+        let data = {};
+        try { data = await response.json(); } catch (e) {}
+        if (!response.ok || data.ok === false) {
+            throw new Error(data.error || data.message || ('HTTP ' + response.status));
+        }
+        return data;
+    }
+
+    function toast(message, kind) {
+        const host = document.getElementById('toastHost');
+        if (!host) return;
+        const node = document.createElement('div');
+        node.className = 'toast ' + (kind || '');
+        node.textContent = message;
+        host.appendChild(node);
+        setTimeout(() => node.remove(), 4200);
+    }
+
+    window.bili3 = { api, toast };
+
     // ---------------- theme ----------------
     const root = document.documentElement;
     const themeBtn = document.getElementById('themeToggle');
@@ -19,6 +49,37 @@
         });
     }
 
+    // ---------------- global active job ----------------
+    async function pollJob() {
+        try {
+            const response = await fetch('/api/jobs', { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) return;
+            const data = await response.json();
+            const active = (data.jobs || []).find((job) => job.active);
+            let pill = document.getElementById('globalJobPill');
+            const actions = document.querySelector('.top-actions');
+            if (!active) {
+                if (pill) pill.remove();
+                return;
+            }
+            if (!pill && actions) {
+                pill = document.createElement('a');
+                pill.id = 'globalJobPill';
+                pill.className = 'job-pill';
+                pill.href = '/jobs';
+                pill.innerHTML = '<span class="job-dot"></span><span></span>';
+                actions.insertBefore(pill, actions.firstChild);
+            }
+            if (pill) {
+                const label = pill.querySelector('span:last-child');
+                if (label) label.textContent = `${active.kind}${active.total ? ' ' + active.done + '/' + active.total : ''}`;
+                pill.title = active.message || '当前任务';
+            }
+        } catch (e) {}
+    }
+    pollJob();
+    setInterval(pollJob, 3000);
+
     // ---------------- feed / infinite scroll ----------------
     const feed = document.getElementById('feed');
     if (!feed) return;
@@ -30,6 +91,7 @@
     const empty = document.getElementById('feedEmpty');
     let nextOffset = Number(feed.dataset.nextOffset || 0);
     let loading = false;
+    let observer = null;
 
     function buildUrl(offset) {
         const params = new URLSearchParams();
@@ -74,7 +136,6 @@
         }
     }
 
-    let observer = null;
     if (moreBtn) moreBtn.addEventListener('click', loadMore);
     if ('IntersectionObserver' in window && sentinel) {
         observer = new IntersectionObserver((entries) => {

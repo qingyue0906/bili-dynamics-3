@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>任务</h1>
+        <p class="sub">批量同步、重试、校验、指定动态和头像任务都在这里执行</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn-primary" type="button" id="newSyncJob">同步全部</button>
+    </div>
+</section>
+
+<section class="panel jobs-panel">
+    <div class="jobs-list" id="jobsList">
+        {% for job in jobs %}
+        <article class="job-card" data-job-id="{{ job.id }}">
+            <div class="job-main">
+                <div class="job-title">
+                    <span class="job-kind">{{ job.kind }}</span>
+                    <span class="job-target">{{ job.target }}</span>
+                    <span class="status-pill status-{{ job.status }}">{{ job.status }}</span>
+                </div>
+                <div class="job-message" data-job-message>{{ job.message or '等待执行' }}</div>
+                <div class="progress"><span class="progress-bar" data-job-bar style="width: {{ (job.done * 100 / job.total) if job.total else (100 if job.status == 'succeeded' else 0) }}%"></span></div>
+                <div class="job-meta">
+                    <span data-job-progress>{{ job.done }}/{{ job.total }}</span>
+                    <span>#{{ job.id }}</span>
+                    <span>{{ job.created_at|timestamp_time }}</span>
+                </div>
+            </div>
+            <div class="job-actions">
+                <button class="btn-mini" type="button" data-job-log="{{ job.id }}">日志</button>
+                {% if job.status in ('queued', 'running', 'cancelling') %}
+                <button class="btn-mini danger" type="button" data-job-cancel="{{ job.id }}">取消</button>
+                {% endif %}
+            </div>
+            <pre class="job-log" data-log-for="{{ job.id }}" hidden></pre>
+        </article>
+        {% else %}
+        <div class="empty">还没有任务。去“用户”页同步，或在“指定动态”页下载一条动态。</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/jobs.js') }}" defer></script>{% endblock %}

@@ -1,24 +1,22 @@
 # bili-dynamics-3
 
-用 [bilibili-api-python](https://github.com/Nemo2011/bilibili-api) 增量抓取指定 UP 主的**图文动态**，下载原图，并用本地 WebUI 浏览。
+用 [bilibili-api-python](https://github.com/Nemo2011/bilibili-api) 增量抓取 B 站 UP 主的图文动态，下载原图，并通过本地 WebUI 浏览和管理。
 
-这是 v3 重写版：元数据从易损坏的 `__info.json` 迁移到 SQLite；修复了老格式图文、充电专属动态崩溃的问题；新增断点续传、失败重试、本地图片校验、缩略图和仿 B 站动态页的画廊。
+v3 以 WebUI 为唯一日常入口：批量同步、重试失败图片、下载指定动态、刷新头像、修改 Cookie 都在网页里完成，不再需要外部 `.cmd`。
 
 ## 功能
 
-- 增量同步：只抓比本地最新 dynamic_id 更新的动态
-- 全量补齐：`--full` 可重新抓取历史（不删除已有数据）
-- 老格式图文：兼容 `major.draw.items[].src`
-- 新版图文：兼容 `major.opus.pics`
-- 充电专属：有权限正常下载；无权限入库为占位，不崩溃
-- 转发：默认跳过，`--include-forwards` 可选择解析原动态图片
-- 每页一个事务：中断最多丢一页，下次从断点继续
-- 单条坏动态 / 单个坏用户不会终止整批任务
-- 图片原子写入（`.part` → 正式文件），超时、重试、404/403 状态机
-- `verify` 校验本地文件；`retry` 补下失败/缺失/待下载图片
-- SQLite 主库 + 每用户 v3 JSON 导出（`data/exports/`）
-- 仿 B 站动态风格的 WebUI：作者侧栏、动态卡片、图片网格、灯箱、深色模式、无限滚动、搜索
+- 用户列表存在 SQLite 中，可启用/停用、批量选择、增删用户
+- 批量同步启用用户；支持增量 / 全量历史 / 只抓元数据 / 限制页数和图片数
+- 重试 `pending / failed / missing` 图片；404/403 不再无限重试
+- 输入动态 URL/ID，预览后下载指定图文动态
+- 本地头像：下载后转成 160×160 WebP，WebUI 不再依赖 B 站外链
+- Cookie、用户设置、头像、图片、任务日志全部在 `data/` 下
+- 后台任务队列：进度、日志、取消、历史记录；同一时间只跑一个重任务
+- SQLite 主库 + WAL + 每页事务；数据库升级前自动备份
+- 仿 B 站动态页的画廊：侧栏、卡片、图片网格、灯箱、深色模式、无限滚动、搜索
 - 按需生成 WebP 缩略图，列表页不直接加载全部原图
+- 修复老格式 `major.draw`、充电 `MAJOR_TYPE_UPOWER_COMMON`、`pics=null`、转发 `major=null` 等崩溃场景
 
 ## 安装
 
@@ -31,42 +29,115 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
-如果直连 PyPI 失败，可以换清华镜像：
+如果直连 PyPI 失败：
 
 ```bat
 .venv\Scripts\pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
-如果系统里已经有 `bilibili-api-python`、`aiohttp`、`Pillow`，也可以用：
+## 启动
 
 ```bat
-python -m venv --system-site-packages .venv
-.venv\Scripts\pip install Flask python-dotenv pytest
+:: 在项目根目录执行
+.venv\Scripts\python -m bili3
 ```
 
-下面的 `python -m bili3 ...` 默认在**项目根目录、已激活 `.venv`** 的终端里执行；不想激活也可以把 `python` 换成 `.venv\Scripts\python.exe`。`.cmd` 脚本会自动优先使用项目内的 `.venv`。
+不带子命令时默认启动 WebUI，并自动打开浏览器。也可以显式：
 
-## 配置
-
-1. 复制 `config.example.toml` 为 `config.toml`（可选，不写就用默认值）
-2. 复制 `.env.example` 为 `.env`，填入 B 站 Cookie：
-
-```dotenv
-BILI_SESSDATA=...
-BILI_JCT=...
-BILI_BUVID3=...
+```bat
+.venv\Scripts\python -m bili3 serve --port 5000
 ```
 
-> `.env` 含登录凭证，不要提交、不要发给别人。`cookie.py` 这种把凭证写进源码的方式在 v3 中不再使用。
+不想显示控制台时：
 
-3. 准备 `user_list.txt`：
+```bat
+.venv\Scripts\pythonw.exe -m bili3
+```
+
+服务默认只监听 `127.0.0.1`，使用 waitress，不会暴露到局域网。没有提供任何 `.cmd` 启动脚本或操作脚本。
+
+## 首次使用
+
+1. 启动 WebUI，进入 **设置**。
+2. 填写 B 站 Cookie：`SESSDATA`、`bili_jct`、`buvid3`，点“保存并验证”。
+3. 点“测试连接”确认登录状态；旧 `.env` 导入的 Cookie 可能已经过期。
+4. 进入 **用户**，添加 UID 或 `space.bilibili.com/...` 链接。
+5. 点“同步全部启用用户”，在 **任务** 页查看进度和日志。
+6. 在 **指定动态** 页可以单独下载一条图文动态。
+
+### 旧用户数据迁移
+
+如果项目根目录还存在旧版 `.env`、`user_list.txt` 或 `config.toml`，首次启动会自动处理：
+
+- Cookie 导入到 `data/config/cookies.json`
+- `user_list.txt` 导入数据库，并设置用户的启用/停用状态
+- 设置导入 `data/config/settings.json`
+- 原文件移动到 `data/legacy/` 备份，不再留在项目根目录
+
+## 数据目录
 
 ```text
-昵称: uid
-另一个昵称: 123456
+data/
+  bili.db                     SQLite 主库
+  config/
+    settings.json             同步/Web 参数（无敏感信息）
+    cookies.json              B 站 Cookie（不进 Git、不被 Web 暴露）
+  avatars/                    本地头像 WebP
+  images/                     新下载图片
+  thumbnails/                 WebP 缩略图缓存
+  exports/                    每用户 v3 JSON 备份
+  logs/
+    jobs/                     每个后台任务日志
+  legacy/                     旧版 .env / user_list 等迁移备份
+  backups/                    数据库升级前备份
 ```
 
-也支持只写 uid。
+`data/` 已加入 `.gitignore`。Cookie 文件默认是本地明文，仅依靠目录权限和“不被 Web 静态目录暴露”保护；如果需要对磁盘上的 Cookie 做 Windows DPAPI 加密，可以再单独加一层。
+
+## WebUI 页面
+
+- **动态**：全部图文、作者侧栏、搜索、无限滚动、灯箱；顶部显示当前任务
+- **用户**：添加用户、启用/停用、批量同步、重试选中用户、刷新头像
+- **任务**：任务队列、进度条、状态、日志尾部、取消
+- **设置**：Cookie、同步参数、校验/补下、头像补全、导出 JSON
+- **指定动态**：URL/ID → 预览 → 下载；可选加入用户列表
+
+用户页的“移出列表”只是停用，不会删除该用户的动态和图片。
+
+## 头像
+
+- 同步用户时会从 `module_author.face` 更新头像
+- 设置页“补全所有头像”会对没有本地头像的用户调用用户信息接口
+- 头像保存为 `data/avatars/<uid>_<hash>.webp`，160×160
+- WebUI 统一请求 `/avatar/<uid>`；没有本地文件时返回按 UID 着色的 SVG 初始头像
+
+## 命令（高级/迁移/灾备）
+
+```bat
+:: 同步启用用户
+.venv\Scripts\python -m bili3 sync --all
+
+:: 只同步一个用户
+.venv\Scripts\python -m bili3 sync --uid 123456789
+
+:: 全量历史，只抓元数据（例如补某个用户的历史）
+.venv\Scripts\python -m bili3 sync --uid 123456789 --full --no-download --max-pages 100
+
+:: 重试图片
+.venv\Scripts\python -m bili3 retry --all
+
+:: 校验本地图片
+.venv\Scripts\python -m bili3 verify --repair
+
+:: 统计
+.venv\Scripts\python -m bili3 stats
+
+:: 导出/重建 JSON 备份
+.venv\Scripts\python -m bili3 export
+.venv\Scripts\python -m bili3 import-json --dry-run
+```
+
+这些命令保留给迁移、灾备和调试；日常操作不需要使用。
 
 ## 从 v2 迁移
 
@@ -86,97 +157,13 @@ data/images/<uid>_<name>/
 
 迁移是幂等的；旧图片目录会被移动到 `data/images/<uid>_<name>`，数据库路径自动更新。迁移完成后可在 `stats` 命令或 WebUI 中查看用户、动态和图片数量。
 
-## 日常使用
+## 安全与风控
 
-```bat
-:: 增量同步 user_list.txt 里的所有用户
-python -m bili3 sync --all
-
-:: 只同步一个用户
-python -m bili3 sync --uid 123456789
-
-:: 抓全部历史，只写元数据，不下载图片（适合先补齐历史）
-python -m bili3 sync --uid 123456789 --full --no-download
-
-:: 测试：只抓 1 页，最多下 2 张图，使用独立数据目录
-python -m bili3 sync --uid 123456789 --max-pages 1 --max-images 2 --data-dir testdata-live
-
-:: 只抓取解析，不写库不下载
-python -m bili3 sync --uid 123456789 --max-pages 1 --dry-run
-
-:: 重试失败/缺失/待下载图片
-python -m bili3 retry --all --max-images 20
-
-:: 校验本地文件；--repair 会顺便补下载
-python -m bili3 verify --repair --max-images 20
-
-:: 统计
-python -m bili3 stats
-
-:: 导出每用户 JSON
-python -m bili3 export
-
-:: 数据库损坏/丢失时，从 data/exports 重建
-python -m bili3 import-json --dry-run
-python -m bili3 import-json
-```
-
-### 翻页间隔与风控
-
-默认 `sleep = 5.0` 秒，带 ±20% 随机抖动。B 站前段时间对这类爬虫限制较严，实测 2 秒也可能被限制，所以默认保持 5 秒。可用 `--sleep 3` 或 `config.toml` 调整，但不建议低于 3 秒。
-
-遇到 `-352` / `429` 会按 60s、120s、240s 退避重试；`-412`（IP 被限制）会停止当前用户并提示稍后重试。
-
-## WebUI
-
-```bat
-python -m bili3 serve
-```
-
-启动后访问 <http://127.0.0.1:5000/>。也可以双击 `a_preview_app.cmd`。
-
-页面：
-
-- `/`：全部动态，按时间倒序，无限滚动
-- `/user/<uid>`：作者页
-- `/search?q=...`：按标题/描述搜索，可按作者筛选
-- `/thumb/<id>`：按需生成的 WebP 缩略图
-- `/media/<id>`：原图（灯箱、下载）
-
-缩略图缓存在 `data/thumbnails/`，可以随时删除，会自动重建。WebUI 只监听 `127.0.0.1`，不会暴露到局域网。
-
-## 数据目录
-
-```text
-data/
-  bili.db                 SQLite 主库（WAL）
-  images/<uid>_<name>/    新下载的图片
-  thumbnails/             WebP 缩略图缓存
-  exports/<uid>_<name>.json  每用户 v3 JSON 备份
-  logs/                   每次运行的 UTF-8 日志
-```
-
-数据库表：
-
-- `users`：uid、昵称、头像、图片目录、最新 dynamic_id、上次同步时间
-- `posts`：动态 ID、类型、标题、描述、发布时间、是否充电、图片数
-- `images`：URL、文件名、尺寸、本地大小、状态（`pending/ok/missing/failed/dead/restricted`）、重试次数
-- `sync_runs`：每次用户同步的页数、新动态数、新图片数、状态
-
-`data/exports/` 是给人类看和灾备用的，可以重新导入；日常运行只读 SQLite。
-
-## 图片状态
-
-| 状态 | 含义 | 后续动作 |
-|---|---|---|
-| `pending` | 待下载（`--no-download` 或达到上限） | `retry` |
-| `ok` | 本地存在 | `verify` 校验 |
-| `missing` | 数据库有记录但本地无文件 | `retry` / `verify --repair` |
-| `failed` | 下载失败，未到上限 | `retry` |
-| `dead` | 404/410，CDN 已删除 | 不再重试 |
-| `restricted` | 401/403，可能无权限 | 不再自动重试 |
-
-v2 里遗留的失败记录现在都是 404，迁移后会被 `retry` 标记为 `dead`，不会无限重试。
+- 默认 `sleep = 5.0` 秒，带 ±20% 随机抖动；用户之间也暂停
+- `-352 / 429` 按 60s、120s、240s 退避；`-412` 会停止当前用户
+- Cookie 不回显完整值，不写日志，不进 JSON 导出
+- 所有修改类 API 要求 `X-Bili3: 1` 请求头，降低本地 CSRF 风险
+- WebUI 默认只监听 `127.0.0.1`
 
 ## 测试
 
@@ -185,18 +172,4 @@ v2 里遗留的失败记录现在都是 404，迁移后会被 `retry` 标记为 
 .venv\Scripts\pytest
 ```
 
-测试不会访问 B 站、不会下载大量图片：
-
-- 解析器 fixtures：新图文、老图文、充电无权限、充电可访问、转发、`pics=null`、缺字段
-- 迁移测试：临时 v2 目录，幂等性、缺失文件
-- 数据库测试：重复 upsert、搜索、分页
-- Web 测试：首页、作者页、搜索、缩略图、路径穿越
-
-真实接口冒烟只使用单用户 + `--max-pages 1` + 最多 2 张图片，并写入 `testdata-live`，不会污染正式库。
-
-## 与 v2 的关系
-
-- v3 不兼容 v2 的 `__info.json`；用 `migrate` 转换
-- v3 不使用 v2 的 `cookie.py`；改用 `.env`
-- v3 不修改 v2 数据；默认引用图片目录
-- v2 的 `a_download_all.cmd` / `a_re_download_all.cmd` / `a_preview_app.cmd` 在 v3 中保留了同名包装脚本，底层换成新 CLI
+覆盖解析器旧/新/充电/转发、SQLite 迁移、用户启停、任务队列/取消、头像下载、导出恢复、Web 页面/CSRF/路径穿越等。测试默认不访问 B 站、不下载大量图片。

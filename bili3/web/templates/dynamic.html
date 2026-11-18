@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>下载指定动态</h1>
+        <p class="sub">支持 t.bilibili.com、opus、dynamic 链接或纯动态 ID；先预览，再下载。</p>
+    </div>
+</section>
+
+<section class="panel dynamic-panel">
+    <form class="dynamic-form" id="dynamicForm">
+        <input type="text" class="input" id="dynamicInput" placeholder="https://t.bilibili.com/123456789012345678 或纯 ID" autocomplete="off">
+        <button class="btn-primary" type="button" id="previewDynamic">预览</button>
+        <button class="btn-ghost" type="button" id="downloadDynamic" disabled>下载图片</button>
+        <label class="check"><input type="checkbox" id="addDynamicUser"> 同时加入用户列表并启用同步</label>
+    </form>
+    <p class="form-hint" id="dynamicHint">不会自动加入用户列表；下载的图片会写入作者的图片目录。</p>
+
+    <div class="dynamic-preview" id="dynamicPreview" hidden>
+        <div class="dynamic-preview-head">
+            <span class="avatar" id="dynamicAvatar"></span>
+            <div>
+                <strong id="dynamicAuthor"></strong>
+                <div class="sub" id="dynamicMeta"></div>
+            </div>
+            <a class="bili-link" id="dynamicLink" href="#" target="_blank" rel="noopener">原动态 ↗</a>
+        </div>
+        <h2 id="dynamicTitle"></h2>
+        <p class="prose" id="dynamicDesc"></p>
+        <div class="dynamic-thumbs" id="dynamicThumbs"></div>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dynamic.js') }}" defer></script>{% endblock %}

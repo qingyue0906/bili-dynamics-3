@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>设置</h1>
+        <p class="sub">当前数据目录：<code>{{ data_dir }}</code>；{{ stats.users }} 个用户、{{ stats.images }} 张图片</p>
+    </div>
+</section>
+
+<div class="settings-grid">
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>B 站 Cookie</h2>
+                <p class="sub">Cookie 保存在 data/config/cookies.json，不会出现在 Web 静态目录或日志里。</p>
+            </div>
+            <span class="status-pill {{ 'status-succeeded' if cookie.configured else 'status-failed' }}">{{ '已保存' if cookie.configured else '未配置' }}</span>
+        </div>
+        <form id="cookieForm" class="form-stack">
+            <label>SESSDATA
+                <input type="password" class="input" name="sessdata" autocomplete="off" placeholder="{{ '已配置，留空不修改' if cookie.sessdata else '必填' }}">
+            </label>
+            <label>bili_jct
+                <input type="password" class="input" name="bili_jct" autocomplete="off" placeholder="{{ '已配置，留空不修改' if cookie.bili_jct else '可选，建议填写' }}">
+            </label>
+            <label>buvid3
+                <input type="password" class="input" name="buvid3" autocomplete="off" placeholder="{{ '已配置，留空不修改' if cookie.buvid3 else '必填' }}">
+            </label>
+            <div class="form-actions">
+                <button class="btn-primary" type="submit">保存并验证</button>
+                <button class="btn-ghost" type="button" id="testCookie">测试连接</button>
+                <button class="btn-mini danger" type="button" id="clearCookie">清除 Cookie</button>
+            </div>
+            <p class="form-hint" id="cookieHint">配置后才能同步动态、下载指定动态和补全头像；“已保存”不代表一定有效，请点“测试连接”确认登录状态。</p>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>同步参数</h2>
+                <p class="sub">修改后对下一个任务生效，不需要重启服务。</p>
+            </div>
+        </div>
+        <form id="optionsForm" class="form-grid">
+            <label>翻页间隔（秒）
+                <input type="number" class="input" name="sleep" min="0" max="300" step="0.5" value="{{ sync.sleep }}">
+            </label>
+            <label>随机抖动
+                <input type="number" class="input" name="jitter" min="0" max="1" step="0.05" value="{{ sync.jitter }}">
+            </label>
+            <label>重试次数
+                <input type="number" class="input" name="retries" min="0" max="10" step="1" value="{{ sync.retries }}">
+            </label>
+            <label>下载并发
+                <input type="number" class="input" name="download_concurrency" min="1" max="16" step="1" value="{{ sync.download_concurrency }}">
+            </label>
+            <label>头像请求间隔（秒）
+                <input type="number" class="input" name="avatar_sleep" min="0" max="30" step="0.5" value="{{ sync.avatar_sleep }}">
+            </label>
+            <label>每次最多页数
+                <input type="number" class="input" name="max_pages" min="0" step="1" value="{{ sync.max_pages }}">
+            </label>
+            <label>每次最多图片
+                <input type="number" class="input" name="max_images" min="0" step="1" value="{{ sync.max_images }}">
+            </label>
+            <label>Web 每页条数
+                <input type="number" class="input" name="page_size" min="1" max="60" step="1" value="{{ web.page_size }}">
+            </label>
+            <label class="check span-2"><input type="checkbox" name="export_json" {% if sync.export_json %}checked{% endif %}> 同步后导出每用户 JSON</label>
+            <div class="form-actions span-2">
+                <button class="btn-primary" type="submit">保存参数</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>数据工具</h2>
+            <p class="sub">这些操作会在“任务”页显示进度，不要重复点击。</p>
+        </div>
+    </div>
+    <div class="toolbar wrap">
+        <button class="btn-ghost" type="button" id="verifyOnly">校验本地图片</button>
+        <button class="btn-ghost" type="button" id="verifyRepair">校验并补下</button>
+        <button class="btn-ghost" type="button" id="retryAllSettings">重试失败项</button>
+        <button class="btn-ghost" type="button" id="refreshAvatarsSettings">补全所有头像</button>
+        <button class="btn-ghost" type="button" id="syncAllSettings">同步全部用户</button>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>关于用户数据</h2>
+            <p class="sub">Cookie、用户列表、任务记录、头像和图片都在 data/ 下；data/ 不会进入 Git。</p>
+        </div>
+    </div>
+    <p class="prose">旧版根目录的 <code>.env</code> 和 <code>user_list.txt</code> 会在首次启动时自动迁移到 <code>data/config/</code> 与 <code>data/legacy/</code>。如果旧图片目录还在项目外，WebUI 仍可正常引用；需要搬进 v3 时使用 CLI 的 <code>migrate --move</code>。</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/settings.js') }}" defer></script>{% endblock %}

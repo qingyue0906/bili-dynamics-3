@@ -2,8 +2,7 @@
 <article class="post-card" data-dynamic-id="{{ post.dynamic_id }}">
     <header class="post-head">
         <a class="avatar post-avatar" href="{{ url_for('user_page', uid=post.uid) }}" style="--hue: {{ post.uid % 360 }}">
-            {% if post.avatar_url %}<img src="{{ post.avatar_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">{% endif %}
-            <span class="avatar-fallback">{{ post.initial or '?' }}</span>
+            <img src="{{ url_for('avatar', uid=post.uid, v=post.avatar_updated_at or 0) }}" alt="">
         </a>
         <div class="post-meta">
             <a class="post-author" href="{{ url_for('user_page', uid=post.uid) }}">{{ post.name or post.uid }}</a>

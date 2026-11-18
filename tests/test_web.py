@@ -110,6 +110,59 @@ def test_charge_placeholder(tmp_path):
     assert "充电专属内容".encode() not in response.data
 
 
+def test_new_pages_and_csrf(tmp_path):
+    config, _ = _seed(tmp_path)
+    app = create_app(config)
+    client = app.test_client()
+    for path in ("/users", "/jobs", "/settings", "/dynamic"):
+        response = client.get(path)
+        assert response.status_code == 200
+    assert client.post("/api/settings/options", json={}).status_code == 403
+    response = client.post(
+        "/api/settings/options", json={}, headers={"X-Bili3": "1"}
+    )
+    assert response.status_code == 200
+    response = client.get("/api/settings")
+    payload = response.get_json()
+    assert payload["cookies"]["configured"] is False
+    assert "sessdata" not in payload["cookies"] or isinstance(payload["cookies"]["sessdata"], bool)
+
+
+def test_avatar_fallback_and_local_avatar(tmp_path):
+    config, _ = _seed(tmp_path)
+    db = Database(config.db_path)
+    avatar_path = config.avatars_dir / "1_test.webp"
+    Image.new("RGB", (160, 160), (0, 174, 236)).save(avatar_path, "WEBP")
+    db.set_user_avatar(1, avatar_path.name, "https://example.com/face.jpg")
+    db.close()
+
+    app = create_app(config)
+    client = app.test_client()
+    response = client.get("/avatar/1")
+    assert response.status_code == 200
+    assert response.mimetype == "image/webp"
+    response = client.get("/avatar/999999")
+    assert response.status_code == 200
+    assert response.mimetype == "image/svg+xml"
+
+
+def test_user_toggle(tmp_path):
+    config, _ = _seed(tmp_path)
+    app = create_app(config)
+    client = app.test_client()
+    response = client.post(
+        "/api/users/1/toggle",
+        json={"enabled": False},
+        headers={"X-Bili3": "1"},
+    )
+    assert response.status_code == 200
+    db = Database(config.db_path)
+    try:
+        assert db.get_user(1)["enabled"] == 0
+    finally:
+        db.close()
+
+
 def test_path_traversal_is_blocked(tmp_path):
     config, post_id = _seed(tmp_path)
     db = Database(config.db_path)

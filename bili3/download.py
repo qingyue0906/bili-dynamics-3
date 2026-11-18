@@ -6,11 +6,13 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import aiohttp
 
 from .config import Config
 from .db import Database
+from .errors import JobCancelled
 from .utils import normalize_download_url, resolve_image_path
 
 logger = logging.getLogger(__name__)
@@ -80,31 +82,46 @@ class Downloader:
         force: bool = False,
         max_images: int = 0,
         progress_every: int = 20,
+        on_progress: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], None] | None = None,
     ) -> DownloadStats:
         if not rows:
             return DownloadStats()
         if max_images and max_images > 0:
             rows = rows[:max_images]
+        total = len(rows)
         semaphore = asyncio.Semaphore(self.config.general.download_concurrency)
         stats = DownloadStats()
         done = 0
 
         async def worker(row: dict) -> DownloadStats:
             nonlocal done
+            if cancel_check:
+                cancel_check()
             async with semaphore:
                 result = await self._download_one(row, force=force)
             done += 1
             if progress_every and done % progress_every == 0:
-                logger.info("下载进度：%d/%d", done, len(rows))
+                logger.info("下载进度：%d/%d", done, total)
+            if on_progress:
+                try:
+                    on_progress(done, total)
+                except Exception:
+                    logger.exception("下载进度回调失败")
             return result
 
         results = await asyncio.gather(*(worker(row) for row in rows), return_exceptions=True)
-        for index, result in enumerate(results):
-            if isinstance(result, DownloadStats):
+        cancelled = False
+        for result in results:
+            if isinstance(result, JobCancelled):
+                cancelled = True
+            elif isinstance(result, DownloadStats):
                 stats.merge(result)
             else:
                 stats.failed += 1
                 logger.error("下载任务异常：%s", result)
+        if cancelled:
+            raise JobCancelled()
         return stats
 
     async def _download_one(self, image: dict, force: bool = False) -> DownloadStats:

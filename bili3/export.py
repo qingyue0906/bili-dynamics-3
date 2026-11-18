@@ -51,9 +51,13 @@ def export_user(db: Database, config: Config, uid: int) -> Path | None:
             "uid": user.get("uid"),
             "name": user.get("name"),
             "avatar_url": user.get("avatar_url"),
+            "avatar_file": user.get("avatar_file"),
+            "avatar_source": user.get("avatar_source"),
+            "avatar_updated_at": user.get("avatar_updated_at"),
             "image_dir": user.get("image_dir"),
             "last_dynamic_id": user.get("last_dynamic_id"),
             "last_sync_at": user.get("last_sync_at"),
+            "enabled": user.get("enabled", 1),
         },
         "posts": [],
     }
@@ -124,7 +128,15 @@ def import_exports(
                 name=name,
                 avatar_url=str(user.get("avatar_url") or ""),
                 image_dir=image_dir,
+                enabled=bool(user.get("enabled", 1)),
             )
+            if user.get("avatar_file"):
+                db.set_user_avatar(
+                    uid,
+                    str(user.get("avatar_file")),
+                    str(user.get("avatar_source") or ""),
+                    user.get("avatar_updated_at"),
+                )
         max_id = 0
         posts = data.get("posts")
         posts = posts if isinstance(posts, list) else []

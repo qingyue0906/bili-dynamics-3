@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 from .config import Config
 from .db import Database
@@ -60,8 +61,11 @@ async def repair_images(
     max_images: int = 0,
     statuses: tuple[str, ...] = ("missing", "failed", "pending"),
     dry_run: bool = False,
+    on_progress: Callable[[int, int], None] | None = None,
+    cancel_check: Callable[[], None] | None = None,
+    uids: list[int] | None = None,
 ) -> DownloadStats:
-    rows = db.get_repair_images(uid=uid, limit=max_images, statuses=statuses)
+    rows = db.get_repair_images(uid=uid, uids=uids, limit=max_images, statuses=statuses)
     if dry_run:
         logger.info("待补下载 %d 张（dry-run，不下载）", len(rows))
         return DownloadStats()
@@ -70,7 +74,12 @@ async def repair_images(
         return DownloadStats()
     logger.info("开始补下载 %d 张图片", len(rows))
     async with Downloader(db, config) as downloader:
-        stats = await downloader.download_rows(rows, max_images=max_images)
+        stats = await downloader.download_rows(
+            rows,
+            max_images=max_images,
+            on_progress=on_progress,
+            cancel_check=cancel_check,
+        )
     logger.info(
         "补下载完成：成功 %d，跳过 %d，失败 %d，失效 %d，受限 %d",
         stats.ok,
