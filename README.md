@@ -83,7 +83,7 @@ data/
     settings.json             同步/Web 参数（无敏感信息）
     cookies.json              B 站 Cookie（不进 Git、不被 Web 暴露）
   avatars/                    本地头像 WebP
-  images/                     新下载图片
+  images/                     全部用户图片（已从 v2 搬入）
   thumbnails/                 WebP 缩略图缓存
   exports/                    每用户 v3 JSON 备份
   logs/

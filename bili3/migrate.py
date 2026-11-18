@@ -204,7 +204,13 @@ def migrate_v2(
                 else:
                     try:
                         shutil.move(str(folder), str(destination))
-                        db.set_user_image_dir(uid, str(destination.resolve()))
+                        try:
+                            stored_dir = str(
+                                destination.resolve().relative_to(config.data_dir.resolve())
+                            )
+                        except ValueError:
+                            stored_dir = str(destination.resolve())
+                        db.set_user_image_dir(uid, stored_dir)
                         stats.moved_users += 1
                     except Exception as exc:
                         logger.error("移动目录失败（保留引用）：%s：%s", folder, exc)

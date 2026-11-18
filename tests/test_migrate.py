@@ -87,6 +87,7 @@ def test_migrate_move_option(tmp_path):
         assert not opus.exists()
         new_dir = config.images_dir / "2_Alice"
         assert (new_dir / "a.jpg").is_file()
-        assert Path(db.get_user(2)["image_dir"]) == new_dir.resolve()
+        stored = Path(db.get_user(2)["image_dir"])
+        assert (stored if stored.is_absolute() else config.data_dir / stored).resolve() == new_dir.resolve()
     finally:
         db.close()
