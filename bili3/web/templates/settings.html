@@ -67,6 +67,27 @@
             <label>Web 每页条数
                 <input type="number" class="input" name="page_size" min="1" max="60" step="1" value="{{ web.page_size }}">
             </label>
+            <label>图片模式每页
+                <input type="number" class="input" name="image_page_size" min="1" max="120" step="1" value="{{ web.image_page_size }}">
+            </label>
+            <label>默认视图
+                <select class="input" name="default_view">
+                    <option value="dynamic" {% if web.default_view == 'dynamic' %}selected{% endif %}>动态</option>
+                    <option value="images" {% if web.default_view == 'images' %}selected{% endif %}>图片</option>
+                </select>
+            </label>
+            <label>默认排序
+                <select class="input" name="default_sort">
+                    <option value="desc" {% if web.default_sort == 'desc' %}selected{% endif %}>最新</option>
+                    <option value="asc" {% if web.default_sort == 'asc' %}selected{% endif %}>最早</option>
+                </select>
+            </label>
+            <label>默认加载方式
+                <select class="input" name="default_load">
+                    <option value="infinite" {% if web.default_load == 'infinite' %}selected{% endif %}>无限滚动</option>
+                    <option value="pages" {% if web.default_load == 'pages' %}selected{% endif %}>分页</option>
+                </select>
+            </label>
             <label class="check span-2"><input type="checkbox" name="export_json" {% if sync.export_json %}checked{% endif %}> 同步后导出每用户 JSON</label>
             <div class="form-actions span-2">
                 <button class="btn-primary" type="submit">保存参数</button>

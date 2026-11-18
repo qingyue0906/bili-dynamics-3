@@ -1,0 +1,14 @@
+{% if total_pages > 1 %}
+<nav class="pagination" aria-label="分页">
+    {% if prev_url %}<a class="page-btn" href="{{ prev_url }}">&larr; 上一页</a>{% endif %}
+    {% for num, url, is_cur in page_links %}
+        {% if is_cur %}
+        <span class="page-link current">{{ num }}</span>
+        {% else %}
+        <a class="page-link" href="{{ url }}">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+    {% if next_url %}<a class="page-btn" href="{{ next_url }}">下一页 &rarr;</a>{% endif %}
+    <span class="page-info">第 {{ page }} / {{ total_pages }} 页</span>
+</nav>
+{% endif %}

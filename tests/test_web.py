@@ -110,6 +110,47 @@ def test_charge_placeholder(tmp_path):
     assert "充电专属内容".encode() not in response.data
 
 
+def test_album_mode_and_pagination(tmp_path):
+    config, _ = _seed(tmp_path)
+    db = Database(config.db_path)
+    for index in (2, 3):
+        post = PostRecord(
+            dynamic_id=str(123456780 + index),
+            uid=1,
+            title=f"相册 {index}",
+            description="",
+            published_at=1700000000 + index,
+            images=[
+                ImageRecord(
+                    url=f"https://x/{index}.jpg",
+                    url_clean=f"https://x/{index}.jpg",
+                    file_name=f"{index}.jpg",
+                    status="ok",
+                )
+            ],
+        )
+        with db.transaction():
+            post_id = db.upsert_post(post)
+            db.upsert_images(post_id, post.images)
+    db.close()
+    config.settings_store.save_options(
+        web={"page_size": 1, "image_page_size": 1, "default_load": "pages"}
+    )
+    config = load_config(base_dir=tmp_path, data_dir=tmp_path / "data")
+    app = create_app(config)
+    client = app.test_client()
+
+    response = client.get("/?mode=images&load=pages&page=2")
+    assert response.status_code == 200
+    assert "album-item".encode() in response.data
+    assert "第 2 / 3 页".encode() in response.data
+
+    response = client.get("/api/images?offset=0&limit=2")
+    payload = response.get_json()
+    assert "album-item" in payload["html"]
+    assert payload["next_offset"] == 2
+
+
 def test_new_pages_and_csrf(tmp_path):
     config, _ = _seed(tmp_path)
     app = create_app(config)

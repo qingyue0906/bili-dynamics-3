@@ -365,6 +365,71 @@ class Database:
             result.append(item)
         return result, has_more
 
+    @staticmethod
+    def _image_where(uid: int | None = None, q: str | None = None) -> tuple[str, list]:
+        where = ["i.status = 'ok'"]
+        params: list = []
+        if uid:
+            where.append("p.uid = ?")
+            params.append(int(uid))
+        if q:
+            where.append("p.search_text LIKE ?")
+            params.append(f"%{q.strip().lower()}%")
+        return " AND ".join(where), params
+
+    def list_images_with_posts(
+        self,
+        limit: int = 48,
+        offset: int = 0,
+        uid: int | None = None,
+        q: str | None = None,
+        sort: str = "desc",
+    ) -> tuple[list[dict], bool]:
+        where, params = self._image_where(uid=uid, q=q)
+        direction = "ASC" if str(sort).lower() == "asc" else "DESC"
+        rows = self.conn.execute(
+            f"""
+            SELECT i.id AS image_id, i.file_name, i.width, i.height, i.url,
+                   p.id AS post_id, p.dynamic_id, p.title AS post_title,
+                   p.description AS post_description, p.published_at, p.is_charge,
+                   u.uid, u.name, u.avatar_updated_at
+            FROM images i
+            JOIN posts p ON p.id = i.post_id
+            JOIN users u ON u.uid = p.uid
+            WHERE {where}
+            ORDER BY p.published_at {direction}, p.id {direction}, i.id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (*params, int(limit) + 1, int(offset)),
+        ).fetchall()
+        has_more = len(rows) > int(limit)
+        rows = rows[: int(limit)]
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["time_str"] = format_ts(item.get("published_at"))
+            item["bili_url"] = f"https://t.bilibili.com/{item['dynamic_id']}"
+            items.append(item)
+        return items, has_more
+
+    def count_images_with_posts(
+        self,
+        uid: int | None = None,
+        q: str | None = None,
+    ) -> int:
+        where, params = self._image_where(uid=uid, q=q)
+        row = self.conn.execute(
+            f"""
+            SELECT COUNT(*) AS n
+            FROM images i
+            JOIN posts p ON p.id = i.post_id
+            JOIN users u ON u.uid = p.uid
+            WHERE {where}
+            """,
+            params,
+        ).fetchone()
+        return int(row["n"])
+
     def count_posts(
         self,
         uid: int | None = None,

@@ -1,0 +1,19 @@
+{% for image in album_items %}
+<a class="album-item"
+   href="{{ url_for('media', image_id=image.image_id) }}"
+   data-full="{{ url_for('media', image_id=image.image_id) }}"
+   data-bili="{{ image.bili_url }}"
+   data-author="{{ image.name or image.uid }}"
+   data-time="{{ image.time_str }}"
+   title="{{ image.name or image.uid }} · {{ image.time_str }}">
+    <img src="{{ url_for('thumb', image_id=image.image_id, w=400) }}"
+         {% if image.width and image.height %}width="{{ image.width }}" height="{{ image.height }}"{% endif %}
+         alt="{{ image.name or image.uid }} 的图片"
+         loading="lazy" decoding="async">
+    <span class="album-overlay">
+        <strong>{{ image.name or image.uid }}</strong>
+        <span>{{ image.time_str }}</span>
+    </span>
+    {% if image.is_charge %}<span class="album-badge">充电专属</span>{% endif %}
+</a>
+{% endfor %}

@@ -2,31 +2,48 @@
 {% block content %}
 <section class="page-head">
     <div>
-        <h1>全部动态</h1>
-        <p class="sub">共 {{ stats.image_posts }} 条图文、{{ stats.ok_images }} 张本地图片{% if stats.charge_posts %}，另有 {{ stats.charge_posts }} 条充电专属占位{% endif %}</p>
+        <h1>{{ '全部图片' if mode == 'images' else '全部动态' }}</h1>
+        <p class="sub">
+            {% if mode == 'images' %}
+            共 {{ total }} 张本地图片
+            {% else %}
+            共 {{ stats.image_posts }} 条图文、{{ stats.ok_images }} 张本地图片{% if stats.charge_posts %}，另有 {{ stats.charge_posts }} 条充电专属占位{% endif %}
+            {% endif %}
+        </p>
     </div>
-    <div class="view-toggle">
-        <a class="active" href="{{ url_for('index') }}">最新</a>
+    <div class="page-actions">
+        {% include "partials/feed_controls.html" %}
     </div>
 </section>
 
 <div class="feed" id="feed"
+     data-mode="{{ mode }}"
+     data-load="{{ load_mode }}"
      data-next-offset="{{ next_offset }}"
      data-uid=""
      data-query=""
-     data-sort="desc"
+     data-sort="{{ sort }}"
      data-charge="0">
-    <div id="postList">
-        {% include "partials/post_list.html" %}
+    <div id="postList" class="{% if mode == 'images' %}album-grid{% endif %}"
+         {% if mode == 'images' %}data-lightbox-group{% endif %}>
+        {% if mode == 'images' %}
+            {% include "partials/album_list.html" %}
+        {% else %}
+            {% include "partials/post_list.html" %}
+        {% endif %}
     </div>
-    <div class="empty" id="feedEmpty" {% if posts %}hidden{% endif %}>
+    <div class="empty" id="feedEmpty" {% if posts or album_items %}hidden{% endif %}>
         <div class="empty-mark">◌</div>
-        <p>这里还没有图文动态</p>
-        <p class="sub">运行 <code>python -m bili3 sync --all</code> 开始同步</p>
+        <p>{{ '还没有本地图片' if mode == 'images' else '这里还没有图文动态' }}</p>
+        <p class="sub">运行“用户”页的同步任务开始抓取</p>
     </div>
+    {% if load_mode == 'infinite' %}
     <div class="feed-more" id="feedMore" {% if not has_more %}hidden{% endif %}>
         <button class="btn-more" type="button" id="loadMore">加载更多</button>
     </div>
     <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>
+    {% else %}
+    {% include "partials/pagination.html" %}
+    {% endif %}
 </div>
 {% endblock %}

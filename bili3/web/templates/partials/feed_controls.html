@@ -1,0 +1,20 @@
+{% if mode == 'images' %}
+<div class="view-toggle" aria-label="视图模式">
+    <a href="{{ feed_url(mode='dynamic') }}">动态</a>
+    <a class="active" href="{{ feed_url(mode='images') }}">图片</a>
+</div>
+{% else %}
+<div class="view-toggle" aria-label="视图模式">
+    <a class="active" href="{{ feed_url(mode='dynamic') }}">动态</a>
+    <a href="{{ feed_url(mode='images') }}">图片</a>
+</div>
+{% endif %}
+<div class="view-toggle" aria-label="排序">
+    {% if sort == 'asc' %}
+    <a href="{{ feed_url(sort='desc') }}">最新</a>
+    <a class="active" href="{{ feed_url(sort='asc') }}">最早</a>
+    {% else %}
+    <a class="active" href="{{ feed_url(sort='desc') }}">最新</a>
+    <a href="{{ feed_url(sort='asc') }}">最早</a>
+    {% endif %}
+</div>

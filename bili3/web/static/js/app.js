@@ -49,6 +49,33 @@
         });
     }
 
+    // ---------------- author sidebar filter ----------------
+    const authorFilter = document.getElementById('authorFilter');
+    if (authorFilter) {
+        const authorList = document.getElementById('authorList');
+        const authorLinks = authorList
+            ? Array.from(authorList.querySelectorAll('.side-user[data-name]'))
+            : [];
+        const totalNode = document.getElementById('sideTotal');
+        const allCount = authorLinks.length;
+        const applyFilter = () => {
+            const query = authorFilter.value.trim().toLowerCase();
+            let visible = 0;
+            authorLinks.forEach((link) => {
+                const name = (link.dataset.name || '').toLowerCase();
+                const uid = String(link.dataset.uid || '');
+                const match = !query || name.includes(query) || uid.includes(query);
+                link.hidden = !match;
+                if (match) visible += 1;
+            });
+            if (totalNode) {
+                totalNode.textContent = query ? `${visible}/${allCount}` : String(allCount);
+            }
+        };
+        authorFilter.addEventListener('input', applyFilter);
+        authorFilter.addEventListener('search', applyFilter);
+    }
+
     // ---------------- global active job ----------------
     async function pollJob() {
         try {
@@ -89,6 +116,8 @@
     const moreBtn = document.getElementById('loadMore');
     const sentinel = document.getElementById('feedSentinel');
     const empty = document.getElementById('feedEmpty');
+    const mode = feed.dataset.mode || 'dynamic';
+    const loadMode = feed.dataset.load || 'infinite';
     let nextOffset = Number(feed.dataset.nextOffset || 0);
     let loading = false;
     let observer = null;
@@ -100,7 +129,8 @@
         if (feed.dataset.query) params.set('q', feed.dataset.query);
         if (feed.dataset.sort) params.set('sort', feed.dataset.sort);
         if (feed.dataset.charge === '1') params.set('charge', '1');
-        return '/api/posts?' + params.toString();
+        const endpoint = mode === 'images' ? '/api/images' : '/api/posts';
+        return endpoint + '?' + params.toString();
     }
 
     async function loadMore() {
@@ -136,12 +166,14 @@
         }
     }
 
-    if (moreBtn) moreBtn.addEventListener('click', loadMore);
-    if ('IntersectionObserver' in window && sentinel) {
-        observer = new IntersectionObserver((entries) => {
-            if (entries.some((entry) => entry.isIntersecting)) loadMore();
-        }, { rootMargin: '700px 0px' });
-        observer.observe(sentinel);
+    if (loadMode === 'infinite') {
+        if (moreBtn) moreBtn.addEventListener('click', loadMore);
+        if ('IntersectionObserver' in window && sentinel) {
+            observer = new IntersectionObserver((entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) loadMore();
+            }, { rootMargin: '700px 0px' });
+            observer.observe(sentinel);
+        }
     }
 
     // ---------------- image error fallback ----------------
@@ -158,6 +190,7 @@
     if (!lb) return;
     const lbImage = document.getElementById('lbImage');
     const lbCounter = document.getElementById('lbCounter');
+    const lbCaption = document.getElementById('lbCaption');
     const lbPrev = document.getElementById('lbPrev');
     const lbNext = document.getElementById('lbNext');
     const lbDownload = document.getElementById('lbDownload');
@@ -173,8 +206,14 @@
         lbImage.src = item.full;
         lbCounter.textContent = `${index + 1} / ${group.length}`;
         lbDownload.href = item.full + '?download=1';
-        if (biliUrl) {
-            lbBili.href = biliUrl;
+        if (lbCaption) {
+            lbCaption.textContent = item.author
+                ? `${item.author}${item.time ? ' · ' + item.time : ''}`
+                : '';
+        }
+        const link = item.bili || biliUrl;
+        if (link) {
+            lbBili.href = link;
             lbBili.hidden = false;
         } else {
             lbBili.hidden = true;
@@ -184,10 +223,17 @@
     }
 
     function openLightbox(cell) {
-        const wrap = cell.closest('.post-images');
+        const albumGrid = cell.closest('[data-lightbox-group]');
+        const wrap = albumGrid || cell.closest('.post-images');
         if (!wrap) return;
-        group = Array.from(wrap.querySelectorAll('.image-cell[data-full]')).map((node) => ({
-            full: node.dataset.full
+        const selector = albumGrid
+            ? '.album-item[data-full]'
+            : '.image-cell[data-full]';
+        group = Array.from(wrap.querySelectorAll(selector)).map((node) => ({
+            full: node.dataset.full,
+            author: node.dataset.author || '',
+            time: node.dataset.time || '',
+            bili: node.dataset.bili || ''
         }));
         index = Math.max(0, group.findIndex((item) => item.full === cell.dataset.full));
         biliUrl = wrap.dataset.bili || '';
@@ -215,7 +261,7 @@
     }
 
     document.addEventListener('click', (event) => {
-        const cell = event.target.closest('.image-cell[data-full]');
+        const cell = event.target.closest('.image-cell[data-full], .album-item[data-full]');
         if (cell) {
             event.preventDefault();
             openLightbox(cell);

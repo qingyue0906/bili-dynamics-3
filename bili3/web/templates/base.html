@@ -52,9 +52,12 @@
     <aside class="sidebar">
         <div class="side-title">
             <span>作者</span>
-            <span class="side-total">{{ users|length }}</span>
+            <span class="side-total" id="sideTotal">{{ users|length }}</span>
         </div>
-        <nav class="side-nav">
+        <div class="side-filter">
+            <input type="search" id="authorFilter" placeholder="筛选作者 / UID..." autocomplete="off" aria-label="筛选作者">
+        </div>
+        <nav class="side-nav" id="authorList">
             <a class="side-user {% if not current_uid %}active{% endif %}" href="{{ url_for('index') }}">
                 <span class="avatar avatar-all">全</span>
                 <span class="side-user-info">
@@ -63,7 +66,7 @@
                 </span>
             </a>
             {% for u in users %}
-            <a class="side-user {% if current_uid == u.uid %}active{% endif %}" href="{{ url_for('user_page', uid=u.uid) }}">
+            <a class="side-user {% if current_uid == u.uid %}active{% endif %}" href="{{ url_for('user_page', uid=u.uid) }}" data-name="{{ u.name }}" data-uid="{{ u.uid }}">
                 <span class="avatar" style="--hue: {{ u.uid % 360 }}">
                     <img src="{{ url_for('avatar', uid=u.uid, v=u.avatar_updated_at or 0) }}" alt="">
                 </span>
@@ -92,6 +95,7 @@
     <div class="lb-stage"><img id="lbImage" alt=""></div>
     <button class="lb-arrow lb-next" id="lbNext" type="button" aria-label="下一张">›</button>
     <div class="lb-bar">
+        <span id="lbCaption" class="lb-caption"></span>
         <span id="lbCounter" class="lb-counter"></span>
         <div class="lb-actions">
             <a id="lbBili" href="#" target="_blank" rel="noopener">查看原动态</a>

@@ -3,11 +3,16 @@
 <section class="page-head">
     <div>
         <h1>搜索{% if query %}：{{ query }}{% endif %}</h1>
-        <p class="sub">找到 {{ total }} 条结果{% if current_uid %} · 已按作者筛选{% endif %}</p>
+        <p class="sub">
+            {% if mode == 'images' %}
+            找到 {{ total }} 张图片{% if current_uid %} · 已按作者筛选{% endif %}
+            {% else %}
+            找到 {{ total }} 条结果{% if current_uid %} · 已按作者筛选{% endif %}
+            {% endif %}
+        </p>
     </div>
-    <div class="view-toggle">
-        <a class="{% if sort == 'desc' %}active{% endif %}" href="{{ url_for('search', q=query, uid=current_uid, sort='desc', charge=1 if include_charge else 0) }}">最新</a>
-        <a class="{% if sort == 'asc' %}active{% endif %}" href="{{ url_for('search', q=query, uid=current_uid, sort='asc', charge=1 if include_charge else 0) }}">最早</a>
+    <div class="page-actions">
+        {% include "partials/feed_controls.html" %}
     </div>
 </section>
 
@@ -20,27 +25,40 @@
         {% endfor %}
     </select>
     <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="load" value="{{ load_mode }}">
     <label class="check"><input type="checkbox" name="charge" value="1" {% if include_charge %}checked{% endif %}> 显示充电占位</label>
     <button class="btn-search" type="submit">筛选</button>
 </form>
 
 <div class="feed" id="feed"
+     data-mode="{{ mode }}"
+     data-load="{{ load_mode }}"
      data-next-offset="{{ next_offset }}"
      data-uid="{{ current_uid or '' }}"
      data-query="{{ query }}"
      data-sort="{{ sort }}"
      data-charge="{{ 1 if include_charge else 0 }}">
-    <div id="postList">
-        {% include "partials/post_list.html" %}
+    <div id="postList" class="{% if mode == 'images' %}album-grid{% endif %}"
+         {% if mode == 'images' %}data-lightbox-group{% endif %}>
+        {% if mode == 'images' %}
+            {% include "partials/album_list.html" %}
+        {% else %}
+            {% include "partials/post_list.html" %}
+        {% endif %}
     </div>
-    <div class="empty" id="feedEmpty" {% if posts %}hidden{% endif %}>
+    <div class="empty" id="feedEmpty" {% if posts or album_items %}hidden{% endif %}>
         <div class="empty-mark">◌</div>
-        <p>没有找到匹配的动态</p>
+        <p>没有找到匹配的{{ '图片' if mode == 'images' else '动态' }}</p>
         <p class="sub">换一个关键词，或去 <a href="{{ url_for('index') }}">全部动态</a> 看看</p>
     </div>
+    {% if load_mode == 'infinite' %}
     <div class="feed-more" id="feedMore" {% if not has_more %}hidden{% endif %}>
         <button class="btn-more" type="button" id="loadMore">加载更多</button>
     </div>
     <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>
+    {% else %}
+    {% include "partials/pagination.html" %}
+    {% endif %}
 </div>
 {% endblock %}

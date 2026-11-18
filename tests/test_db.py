@@ -94,6 +94,34 @@ def test_user_enabled_avatar_and_jobs(tmp_path):
     db.close()
 
 
+def test_album_query_sort_and_filter(tmp_path):
+    db = Database(tmp_path / "test.db")
+    db.upsert_user(1, name="Alice", image_dir=str(tmp_path / "images"))
+    for index in range(2):
+        post = make_post(dynamic_id=str(100 + index), title=f"标题 {index}")
+        post.published_at = 1700000000 + index
+        with db.transaction():
+            post_id = db.upsert_post(post)
+            db.upsert_images(
+                post_id,
+                [
+                    ImageRecord(
+                        url=f"https://x/{index}.jpg",
+                        url_clean=f"https://x/{index}.jpg",
+                        file_name=f"{index}.jpg",
+                        status="ok",
+                    )
+                ],
+            )
+    newest, _ = db.list_images_with_posts(limit=10, sort="desc")
+    oldest, _ = db.list_images_with_posts(limit=10, sort="asc")
+    assert newest[0]["file_name"] == "1.jpg"
+    assert oldest[0]["file_name"] == "0.jpg"
+    assert db.count_images_with_posts() == 2
+    assert db.count_images_with_posts(q="标题 1") == 1
+    db.close()
+
+
 def test_retry_counts(tmp_path):
     db = Database(tmp_path / "test.db")
     db.upsert_user(1, name="Alice", image_dir=str(tmp_path / "images"))

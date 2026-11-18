@@ -29,7 +29,11 @@ DEFAULT_WEB = {
     "host": "127.0.0.1",
     "port": 5000,
     "page_size": 24,
+    "image_page_size": 48,
     "thumbnail_width": 400,
+    "default_view": "dynamic",
+    "default_sort": "desc",
+    "default_load": "infinite",
     "auto_open": True,
     "debug": False,
 }
@@ -67,6 +71,11 @@ def _clean_sync(raw: dict) -> dict:
     }
 
 
+def _enum(value, allowed: tuple[str, ...], default: str) -> str:
+    value = str(value or "")
+    return value if value in allowed else default
+
+
 def _clean_web(raw: dict) -> dict:
     data = copy.deepcopy(DEFAULT_WEB)
     data.update(raw if isinstance(raw, dict) else {})
@@ -74,7 +83,11 @@ def _clean_web(raw: dict) -> dict:
         "host": "127.0.0.1",
         "port": _clamp(data.get("port"), 1, 65535, int, 5000),
         "page_size": _clamp(data.get("page_size"), 1, 60, int, 24),
+        "image_page_size": _clamp(data.get("image_page_size"), 1, 120, int, 48),
         "thumbnail_width": _clamp(data.get("thumbnail_width"), 120, 1200, int, 400),
+        "default_view": _enum(data.get("default_view"), ("dynamic", "images"), "dynamic"),
+        "default_sort": _enum(data.get("default_sort"), ("desc", "asc"), "desc"),
+        "default_load": _enum(data.get("default_load"), ("infinite", "pages"), "infinite"),
         "auto_open": bool(data.get("auto_open", True)),
         "debug": bool(data.get("debug", False)),
     }

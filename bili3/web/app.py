@@ -8,7 +8,7 @@ import threading
 import warnings
 from pathlib import Path
 
-from flask import Flask, abort, g, jsonify, render_template, request, send_file
+from flask import Flask, abort, g, jsonify, render_template, request, send_file, url_for
 from PIL import Image, ImageOps
 
 from ..avatars import download_avatar
@@ -133,20 +133,167 @@ def create_app(config: Config) -> Flask:
         include_charge = request.args.get("charge") == "1"
         return uid_value, q, sort, include_charge
 
+    def _feed_state():
+        web = state.config.web
+        mode = request.args.get("mode") or web.default_view
+        if mode not in ("dynamic", "images"):
+            mode = "dynamic"
+        sort = request.args.get("sort") or web.default_sort
+        if sort not in ("desc", "asc"):
+            sort = "desc"
+        load_mode = request.args.get("load") or web.default_load
+        if load_mode not in ("infinite", "pages"):
+            load_mode = "infinite"
+        try:
+            page = int(request.args.get("page", "1"))
+        except ValueError:
+            page = 1
+        page = max(1, page)
+        if load_mode == "infinite":
+            page = 1
+        return mode, sort, load_mode, page
+
+    def _feed_url(endpoint: str, path_args: dict | None = None, include_uid: bool = False, **overrides):
+        keys = ("q", "uid", "sort", "mode", "load", "charge")
+        args = {
+            key: request.args.get(key)
+            for key in keys
+            if request.args.get(key) not in (None, "")
+        }
+        if not include_uid:
+            args.pop("uid", None)
+        args.update({key: value for key, value in overrides.items() if value is not None})
+        if "page" not in overrides:
+            args.pop("page", None)
+        return url_for(endpoint, **(path_args or {}), **args)
+
+    def _pagination(endpoint: str, path_args: dict | None, include_uid: bool, page: int, total: int, limit: int):
+        total_pages = max(1, (total + limit - 1) // limit) if total else 1
+        page = min(max(1, page), total_pages)
+        pages = []
+        start = max(1, page - 3)
+        end = min(total_pages, start + 6)
+        start = max(1, end - 6)
+        for number in range(start, end + 1):
+            pages.append(
+                (
+                    number,
+                    _feed_url(
+                        endpoint,
+                        path_args=path_args,
+                        include_uid=include_uid,
+                        page=number,
+                    ),
+                    number == page,
+                )
+            )
+        prev_url = (
+            _feed_url(
+                endpoint, path_args=path_args, include_uid=include_uid, page=page - 1
+            )
+            if page > 1
+            else None
+        )
+        next_url = (
+            _feed_url(
+                endpoint, path_args=path_args, include_uid=include_uid, page=page + 1
+            )
+            if page < total_pages
+            else None
+        )
+        return {
+            "page": page,
+            "total_pages": total_pages,
+            "page_links": pages,
+            "prev_url": prev_url,
+            "next_url": next_url,
+        }
+
+    def _render_feed(
+        template: str,
+        endpoint: str,
+        path_args: dict | None,
+        include_uid: bool,
+        uid: int | None,
+        q: str,
+        include_charge: bool,
+        page_title: str,
+        **extra,
+    ):
+        db = get_db()
+        mode, sort, load_mode, page = _feed_state()
+        limit = (
+            state.config.web.image_page_size
+            if mode == "images"
+            else state.config.web.page_size
+        )
+        if mode == "images":
+            total = db.count_images_with_posts(uid=uid, q=q or None)
+        else:
+            total = db.count_posts(uid=uid, q=q or None, include_charge=include_charge)
+        if load_mode == "infinite":
+            page = 1
+        else:
+            total_pages = max(1, (total + limit - 1) // limit) if total else 1
+            page = min(page, total_pages)
+        offset = (page - 1) * limit
+        if mode == "images":
+            items, has_more = db.list_images_with_posts(
+                limit=limit,
+                offset=offset,
+                uid=uid,
+                q=q or None,
+                sort=sort,
+            )
+        else:
+            items, has_more = db.list_posts_with_images(
+                limit=limit,
+                offset=offset,
+                uid=uid,
+                q=q or None,
+                sort=sort,
+                include_charge=include_charge,
+            )
+        page_data = _pagination(endpoint, path_args, include_uid, page, total, limit)
+        page = page_data["page"]
+        if mode == "images" and page_title == "全部动态":
+            page_title = "全部图片"
+        return render_template(
+            template,
+            posts=items if mode == "dynamic" else [],
+            album_items=items if mode == "images" else [],
+            mode=mode,
+            sort=sort,
+            load_mode=load_mode,
+            has_more=has_more,
+            next_offset=(offset + len(items)) if has_more else 0,
+            limit=limit,
+            total=total,
+            current_uid=uid,
+            query=q,
+            include_charge=include_charge,
+            page_title=page_title,
+            feed_url=lambda **kwargs: _feed_url(
+                endpoint,
+                path_args=path_args,
+                include_uid=include_uid,
+                **kwargs,
+            ),
+            **page_data,
+            **extra,
+        )
+
     @app.route("/")
     def index():
-        _, limit = _page_args()
-        posts, has_more = get_db().list_posts_with_images(limit=limit, offset=0)
-        return render_template(
+        return _render_feed(
             "index.html",
-            posts=posts,
-            has_more=has_more,
-            next_offset=limit if has_more else 0,
-            current_uid=None,
-            query="",
-            sort="desc",
-            include_charge=False,
-            page_title="全部动态",
+            "index",
+            None,
+            False,
+            None,
+            "",
+            False,
+            "全部动态",
             active_page="home",
         )
 
@@ -156,49 +303,31 @@ def create_app(config: Config) -> Flask:
         user = db.get_user(uid)
         if not user:
             abort(404)
-        _, limit = _page_args()
-        posts, has_more = db.list_posts_with_images(limit=limit, offset=0, uid=uid)
-        total = db.count_posts(uid=uid)
-        return render_template(
+        return _render_feed(
             "user.html",
-            user=user,
-            posts=posts,
-            has_more=has_more,
-            next_offset=limit if has_more else 0,
-            current_uid=uid,
-            query="",
-            sort="desc",
-            include_charge=False,
-            total=total,
-            page_title=str(user["name"] or uid),
+            "user_page",
+            {"uid": uid},
+            False,
+            uid,
+            "",
+            False,
+            str(user["name"] or uid),
             active_page="home",
+            user=user,
         )
 
     @app.route("/search")
     def search():
-        db = get_db()
         uid, q, sort, include_charge = _filters()
-        _, limit = _page_args()
-        posts, has_more = db.list_posts_with_images(
-            limit=limit,
-            offset=0,
-            uid=uid,
-            q=q or None,
-            sort=sort,
-            include_charge=include_charge,
-        )
-        total = db.count_posts(uid=uid, q=q or None, include_charge=include_charge)
-        return render_template(
+        return _render_feed(
             "search.html",
-            posts=posts,
-            has_more=has_more,
-            next_offset=limit if has_more else 0,
-            current_uid=uid,
-            query=q,
-            sort=sort,
-            include_charge=include_charge,
-            total=total,
-            page_title=f"搜索：{q}" if q else "搜索",
+            "search",
+            None,
+            True,
+            uid,
+            q,
+            include_charge,
+            f"搜索：{q}" if q else "搜索",
             active_page="home",
         )
 
@@ -221,6 +350,30 @@ def create_app(config: Config) -> Flask:
                 "html": html_fragment,
                 "has_more": has_more,
                 "next_offset": (offset + len(posts)) if has_more else 0,
+            }
+        )
+
+    @app.route("/api/images")
+    def api_images():
+        db = get_db()
+        offset, _ = _page_args()
+        try:
+            limit = int(
+                request.args.get("limit", str(state.config.web.image_page_size))
+            )
+        except ValueError:
+            limit = state.config.web.image_page_size
+        limit = max(1, min(120, limit))
+        uid, q, sort, _ = _filters()
+        items, has_more = db.list_images_with_posts(
+            limit=limit, offset=offset, uid=uid, q=q or None, sort=sort
+        )
+        html_fragment = render_template("partials/album_list.html", album_items=items)
+        return jsonify(
+            {
+                "html": html_fragment,
+                "has_more": has_more,
+                "next_offset": (offset + len(items)) if has_more else 0,
             }
         )
 

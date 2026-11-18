@@ -6,30 +6,48 @@
     </span>
     <div class="profile-info">
         <h1>{{ user.name }}</h1>
-        <p class="sub">UID {{ user.uid }} · {{ total }} 条图文{% if user.last_sync_at %} · 上次同步 {{ user.last_sync_at|timestamp_time }}{% endif %}</p>
+        <p class="sub">
+            UID {{ user.uid }} ·
+            {% if mode == 'images' %}{{ total }} 张图片{% else %}{{ total }} 条图文{% endif %}
+            {% if user.last_sync_at %} · 上次同步 {{ user.last_sync_at|timestamp_time }}{% endif %}
+        </p>
         <div class="profile-links">
             <a href="https://space.bilibili.com/{{ user.uid }}" target="_blank" rel="noopener">B 站空间 ↗</a>
-            <a href="{{ url_for('search', uid=user.uid) }}">在本页搜索</a>
+            <a href="{{ url_for('search', uid=user.uid, mode=mode, sort=sort, load=load_mode) }}">在本页搜索</a>
         </div>
+    </div>
+    <div class="profile-controls">
+        {% include "partials/feed_controls.html" %}
     </div>
 </section>
 
 <div class="feed" id="feed"
+     data-mode="{{ mode }}"
+     data-load="{{ load_mode }}"
      data-next-offset="{{ next_offset }}"
      data-uid="{{ current_uid }}"
      data-query=""
-     data-sort="desc"
+     data-sort="{{ sort }}"
      data-charge="0">
-    <div id="postList">
-        {% include "partials/post_list.html" %}
+    <div id="postList" class="{% if mode == 'images' %}album-grid{% endif %}"
+         {% if mode == 'images' %}data-lightbox-group{% endif %}>
+        {% if mode == 'images' %}
+            {% include "partials/album_list.html" %}
+        {% else %}
+            {% include "partials/post_list.html" %}
+        {% endif %}
     </div>
-    <div class="empty" id="feedEmpty" {% if posts %}hidden{% endif %}>
+    <div class="empty" id="feedEmpty" {% if posts or album_items %}hidden{% endif %}>
         <div class="empty-mark">◌</div>
-        <p>这个作者还没有可展示的图文</p>
+        <p>这个作者还没有可展示的{{ '图片' if mode == 'images' else '图文' }}</p>
     </div>
+    {% if load_mode == 'infinite' %}
     <div class="feed-more" id="feedMore" {% if not has_more %}hidden{% endif %}>
         <button class="btn-more" type="button" id="loadMore">加载更多</button>
     </div>
     <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>
+    {% else %}
+    {% include "partials/pagination.html" %}
+    {% endif %}
 </div>
 {% endblock %}

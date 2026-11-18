@@ -33,7 +33,11 @@ class WebConfig:
     host: str = "127.0.0.1"
     port: int = 5000
     page_size: int = 24
+    image_page_size: int = 48
     thumbnail_width: int = 400
+    default_view: str = "dynamic"
+    default_sort: str = "desc"
+    default_load: str = "infinite"
     auto_open: bool = True
     debug: bool = False
 
@@ -252,7 +256,11 @@ def load_config(
         host=str(host or web_values["host"] or "127.0.0.1"),
         port=int(port or web_values["port"]),
         page_size=max(1, min(60, int(web_values["page_size"]))),
+        image_page_size=max(1, min(120, int(web_values["image_page_size"]))),
         thumbnail_width=max(120, min(1200, int(web_values["thumbnail_width"]))),
+        default_view=str(web_values["default_view"]),
+        default_sort=str(web_values["default_sort"]),
+        default_load=str(web_values["default_load"]),
         auto_open=bool(web_values["auto_open"] if auto_open is None else auto_open),
         debug=bool(web_values["debug"] if debug is None else debug),
     )

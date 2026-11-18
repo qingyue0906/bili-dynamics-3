@@ -69,7 +69,13 @@
                 max_images: data.get('max_images'),
                 export_json: data.get('export_json') === 'on'
             };
-            const web = { page_size: data.get('page_size') };
+            const web = {
+                page_size: data.get('page_size'),
+                image_page_size: data.get('image_page_size'),
+                default_view: data.get('default_view'),
+                default_sort: data.get('default_sort'),
+                default_load: data.get('default_load')
+            };
             try {
                 await api('/api/settings/options', { sync, web });
                 toast('参数已保存', 'ok');
