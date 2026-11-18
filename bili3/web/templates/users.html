@@ -56,7 +56,7 @@
                 </div>
             </div>
             <div class="user-data">
-                <span>{{ u.image_post_count }} 条</span>
+                <span>{{ u.post_count if web_settings.show_empty_posts else u.image_post_count }} 条</span>
                 <span class="muted">{{ u.image_count }} 图</span>
                 {% if u.last_sync_at %}<span class="muted">上次 {{ u.last_sync_at|timestamp_time }}</span>{% endif %}
             </div>

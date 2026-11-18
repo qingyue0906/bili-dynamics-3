@@ -8,7 +8,7 @@
         <h1>{{ user.name }}</h1>
         <p class="sub">
             UID {{ user.uid }} ·
-            {% if mode == 'images' %}{{ total }} 张图片{% else %}{{ total }} 条图文{% endif %}
+            {% if mode == 'images' %}{{ total }} 张图片{% else %}{{ total }} 条动态{% endif %}
             {% if user.last_sync_at %} · 上次同步 {{ user.last_sync_at|timestamp_time }}{% endif %}
         </p>
         <div class="profile-links">

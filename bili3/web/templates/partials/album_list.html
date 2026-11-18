@@ -1,4 +1,5 @@
 {% for image in album_items %}
+{% if image.ok %}
 <a class="album-item"
    href="{{ url_for('media', image_id=image.image_id) }}"
    data-full="{{ url_for('media', image_id=image.image_id) }}"
@@ -16,4 +17,16 @@
     </span>
     {% if image.is_charge %}<span class="album-badge">充电专属</span>{% endif %}
 </a>
+{% else %}
+<div class="album-item is-missing" title="{{ image.status_label }}">
+    <span class="album-placeholder">
+        <strong>{{ image.status_label }}</strong>
+        <span>原动态仍保留在动态模式</span>
+    </span>
+    <span class="album-overlay">
+        <strong>{{ image.name or image.uid }}</strong>
+        <span>{{ image.time_str }}</span>
+    </span>
+</div>
+{% endif %}
 {% endfor %}

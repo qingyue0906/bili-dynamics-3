@@ -89,6 +89,7 @@ def create_app(config: Config) -> Flask:
         return {
             "users": db.list_users_with_counts(),
             "stats": db.stats(),
+            "web_settings": state.settings.web(),
             "active_job": state.tasks.active_job(),
             "settings_store": state.settings,
             "cookie_status": state.settings.masked_cookies(),
@@ -227,10 +228,21 @@ def create_app(config: Config) -> Flask:
             if mode == "images"
             else state.config.web.page_size
         )
+        show_empty_posts = bool(state.config.web.show_empty_posts)
+        show_missing_images = bool(state.config.web.show_missing_images)
         if mode == "images":
-            total = db.count_images_with_posts(uid=uid, q=q or None)
+            total = db.count_images_with_posts(
+                uid=uid,
+                q=q or None,
+                include_missing=show_missing_images,
+            )
         else:
-            total = db.count_posts(uid=uid, q=q or None, include_charge=include_charge)
+            total = db.count_posts(
+                uid=uid,
+                q=q or None,
+                include_charge=include_charge,
+                include_empty=show_empty_posts,
+            )
         if load_mode == "infinite":
             page = 1
         else:
@@ -244,6 +256,7 @@ def create_app(config: Config) -> Flask:
                 uid=uid,
                 q=q or None,
                 sort=sort,
+                include_missing=show_missing_images,
             )
         else:
             items, has_more = db.list_posts_with_images(
@@ -253,6 +266,7 @@ def create_app(config: Config) -> Flask:
                 q=q or None,
                 sort=sort,
                 include_charge=include_charge,
+                include_empty=show_empty_posts,
             )
         page_data = _pagination(endpoint, path_args, include_uid, page, total, limit)
         page = page_data["page"]
@@ -343,6 +357,7 @@ def create_app(config: Config) -> Flask:
             q=q or None,
             sort=sort,
             include_charge=include_charge,
+            include_empty=bool(state.config.web.show_empty_posts),
         )
         html_fragment = render_template("partials/post_list.html", posts=posts)
         return jsonify(
@@ -366,7 +381,12 @@ def create_app(config: Config) -> Flask:
         limit = max(1, min(120, limit))
         uid, q, sort, _ = _filters()
         items, has_more = db.list_images_with_posts(
-            limit=limit, offset=offset, uid=uid, q=q or None, sort=sort
+            limit=limit,
+            offset=offset,
+            uid=uid,
+            q=q or None,
+            sort=sort,
+            include_missing=bool(state.config.web.show_missing_images),
         )
         html_fragment = render_template("partials/album_list.html", album_items=items)
         return jsonify(

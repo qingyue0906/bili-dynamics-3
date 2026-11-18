@@ -102,12 +102,66 @@ def test_charge_placeholder(tmp_path):
     db.close()
     app = create_app(config)
     client = app.test_client()
-    response = client.get("/search?q=充电&charge=1")
+    response = client.get("/search?q=充电")
     assert response.status_code == 200
     assert "充电专属内容".encode() in response.data
-    # hidden by default
+
+    config.settings_store.save_options(web={"show_empty_posts": False})
+    config = load_config(base_dir=tmp_path, data_dir=tmp_path / "data")
+    app = create_app(config)
+    client = app.test_client()
     response = client.get("/search?q=充电")
     assert "充电专属内容".encode() not in response.data
+
+
+def test_empty_post_and_missing_image_are_visible(tmp_path):
+    config, post_id = _seed(tmp_path)
+    db = Database(config.db_path)
+    with db.transaction():
+        db.upsert_post(
+            PostRecord(
+                dynamic_id="111222333",
+                uid=1,
+                title="无图测试动态",
+                description="只有文字也要能看",
+                published_at=1700000200,
+                images=[],
+            )
+        )
+        db.upsert_images(
+            post_id,
+            [
+                ImageRecord(
+                    url="https://i0.hdslb.com/bfs/new_dyn/lost.jpg",
+                    url_clean="https://i0.hdslb.com/bfs/new_dyn/lost.jpg",
+                    file_name="lost.jpg",
+                    status="missing",
+                )
+            ],
+        )
+    db.close()
+    app = create_app(config)
+    client = app.test_client()
+
+    response = client.get("/")
+    assert "无图测试动态".encode() in response.data
+    assert "无图动态".encode() in response.data
+
+    response = client.get("/?mode=images")
+    assert "album-item is-missing".encode() in response.data
+    assert "图片缺失".encode() in response.data
+
+    payload = client.get("/api/images?offset=0&limit=5").get_json()
+    assert "is-missing" in payload["html"]
+
+    config.settings_store.save_options(
+        web={"show_empty_posts": False, "show_missing_images": False}
+    )
+    config = load_config(base_dir=tmp_path, data_dir=tmp_path / "data")
+    app = create_app(config)
+    client = app.test_client()
+    assert "无图测试动态".encode() not in client.get("/").data
+    assert "is-missing".encode() not in client.get("/?mode=images").data
 
 
 def test_album_mode_and_pagination(tmp_path):

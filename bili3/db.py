@@ -196,6 +196,7 @@ class Database:
             """
             SELECT u.uid, u.name, u.avatar_url, u.avatar_file, u.avatar_updated_at,
                    u.image_dir, u.last_sync_at, u.last_dynamic_id, u.enabled,
+                   COUNT(p.id) AS post_count,
                    COALESCE(SUM(CASE WHEN p.image_count > 0 THEN 1 ELSE 0 END), 0) AS image_post_count,
                    COALESCE(SUM(p.image_count), 0) AS image_count
             FROM users u
@@ -303,9 +304,14 @@ class Database:
         uid: int | None = None,
         q: str | None = None,
         include_charge: bool = False,
+        include_empty: bool = False,
     ) -> tuple[str, list]:
-        where = ["(p.image_count > 0 OR (p.kind = 'charge' AND ? = 1))"]
-        params: list = [1 if include_charge else 0]
+        if include_empty:
+            where = ["1=1"]
+            params: list = []
+        else:
+            where = ["(p.image_count > 0 OR (p.kind = 'charge' AND ? = 1))"]
+            params = [1 if include_charge else 0]
         if uid:
             where.append("p.uid = ?")
             params.append(int(uid))
@@ -313,6 +319,16 @@ class Database:
             where.append("p.search_text LIKE ?")
             params.append(f"%{q.strip().lower()}%")
         return " AND ".join(where), params
+
+    @staticmethod
+    def _image_status_label(status: str) -> str:
+        return {
+            "missing": "图片缺失",
+            "dead": "B站已删除",
+            "failed": "下载失败",
+            "restricted": "无权限",
+            "pending": "待下载",
+        }.get(status, "图片失效")
 
     def list_posts_with_images(
         self,
@@ -322,8 +338,11 @@ class Database:
         q: str | None = None,
         sort: str = "desc",
         include_charge: bool = False,
+        include_empty: bool = False,
     ) -> tuple[list[dict], bool]:
-        where, params = self._post_where(uid=uid, q=q, include_charge=include_charge)
+        where, params = self._post_where(
+            uid=uid, q=q, include_charge=include_charge, include_empty=include_empty
+        )
         direction = "ASC" if str(sort).lower() == "asc" else "DESC"
         rows = self.conn.execute(
             f"""
@@ -356,6 +375,7 @@ class Database:
             images = images_by_post.get(int(row["id"]), [])
             for image in images:
                 image["ok"] = image.get("status") == "ok"
+                image["status_label"] = self._image_status_label(image.get("status", ""))
             item["images"] = images
             item["time_str"] = format_ts(item.get("published_at"))
             item["bili_url"] = f"https://t.bilibili.com/{item['dynamic_id']}"
@@ -366,8 +386,10 @@ class Database:
         return result, has_more
 
     @staticmethod
-    def _image_where(uid: int | None = None, q: str | None = None) -> tuple[str, list]:
-        where = ["i.status = 'ok'"]
+    def _image_where(
+        uid: int | None = None, q: str | None = None, include_missing: bool = False
+    ) -> tuple[str, list]:
+        where = ["1=1"] if include_missing else ["i.status = 'ok'"]
         params: list = []
         if uid:
             where.append("p.uid = ?")
@@ -384,12 +406,13 @@ class Database:
         uid: int | None = None,
         q: str | None = None,
         sort: str = "desc",
+        include_missing: bool = False,
     ) -> tuple[list[dict], bool]:
-        where, params = self._image_where(uid=uid, q=q)
+        where, params = self._image_where(uid=uid, q=q, include_missing=include_missing)
         direction = "ASC" if str(sort).lower() == "asc" else "DESC"
         rows = self.conn.execute(
             f"""
-            SELECT i.id AS image_id, i.file_name, i.width, i.height, i.url,
+            SELECT i.id AS image_id, i.file_name, i.width, i.height, i.url, i.status,
                    p.id AS post_id, p.dynamic_id, p.title AS post_title,
                    p.description AS post_description, p.published_at, p.is_charge,
                    u.uid, u.name, u.avatar_updated_at
@@ -409,6 +432,8 @@ class Database:
             item = dict(row)
             item["time_str"] = format_ts(item.get("published_at"))
             item["bili_url"] = f"https://t.bilibili.com/{item['dynamic_id']}"
+            item["ok"] = item.get("status") == "ok"
+            item["status_label"] = self._image_status_label(item.get("status", ""))
             items.append(item)
         return items, has_more
 
@@ -416,8 +441,9 @@ class Database:
         self,
         uid: int | None = None,
         q: str | None = None,
+        include_missing: bool = False,
     ) -> int:
-        where, params = self._image_where(uid=uid, q=q)
+        where, params = self._image_where(uid=uid, q=q, include_missing=include_missing)
         row = self.conn.execute(
             f"""
             SELECT COUNT(*) AS n
@@ -435,8 +461,11 @@ class Database:
         uid: int | None = None,
         q: str | None = None,
         include_charge: bool = False,
+        include_empty: bool = False,
     ) -> int:
-        where, params = self._post_where(uid=uid, q=q, include_charge=include_charge)
+        where, params = self._post_where(
+            uid=uid, q=q, include_charge=include_charge, include_empty=include_empty
+        )
         row = self.conn.execute(
             f"SELECT COUNT(*) AS n FROM posts p WHERE {where}", params
         ).fetchone()
@@ -644,12 +673,14 @@ class Database:
                 (SELECT COUNT(*) FROM users WHERE avatar_file <> '') AS avatars,
                 (SELECT COUNT(*) FROM posts) AS posts,
                 (SELECT COUNT(*) FROM posts WHERE image_count > 0) AS image_posts,
+                (SELECT COUNT(*) FROM posts WHERE image_count = 0) AS empty_posts,
                 (SELECT COUNT(*) FROM posts WHERE kind = 'charge' AND image_count = 0) AS charge_posts,
                 (SELECT COUNT(*) FROM images) AS images,
                 (SELECT COUNT(*) FROM images WHERE status = 'ok') AS ok_images,
                 (SELECT COUNT(*) FROM images WHERE status IN ('missing', 'failed')) AS missing_images,
                 (SELECT COUNT(*) FROM images WHERE status = 'dead') AS dead_images,
                 (SELECT COUNT(*) FROM images WHERE status = 'pending') AS pending_images,
+                (SELECT COUNT(*) FROM images WHERE status IN ('missing', 'failed', 'dead', 'restricted', 'pending')) AS placeholder_images,
                 (SELECT COALESCE(SUM(local_size), 0) FROM images) AS bytes
             """
         ).fetchone()

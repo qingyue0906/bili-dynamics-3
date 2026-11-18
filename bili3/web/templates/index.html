@@ -5,9 +5,9 @@
         <h1>{{ '全部图片' if mode == 'images' else '全部动态' }}</h1>
         <p class="sub">
             {% if mode == 'images' %}
-            共 {{ total }} 张本地图片
+            共 {{ total }} 张图片{% if stats.placeholder_images %}，其中 {{ stats.placeholder_images }} 张为失效/待下载占位{% endif %}
             {% else %}
-            共 {{ stats.image_posts }} 条图文、{{ stats.ok_images }} 张本地图片{% if stats.charge_posts %}，另有 {{ stats.charge_posts }} 条充电专属占位{% endif %}
+            共 {{ stats.posts }} 条动态（{{ stats.image_posts }} 条有图{% if stats.empty_posts %}，{{ stats.empty_posts }} 条无图{% endif %}）
             {% endif %}
         </p>
     </div>

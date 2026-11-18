@@ -34,6 +34,8 @@ DEFAULT_WEB = {
     "default_view": "dynamic",
     "default_sort": "desc",
     "default_load": "infinite",
+    "show_empty_posts": True,
+    "show_missing_images": True,
     "auto_open": True,
     "debug": False,
 }
@@ -88,6 +90,8 @@ def _clean_web(raw: dict) -> dict:
         "default_view": _enum(data.get("default_view"), ("dynamic", "images"), "dynamic"),
         "default_sort": _enum(data.get("default_sort"), ("desc", "asc"), "desc"),
         "default_load": _enum(data.get("default_load"), ("infinite", "pages"), "infinite"),
+        "show_empty_posts": bool(data.get("show_empty_posts", True)),
+        "show_missing_images": bool(data.get("show_missing_images", True)),
         "auto_open": bool(data.get("auto_open", True)),
         "debug": bool(data.get("debug", False)),
     }

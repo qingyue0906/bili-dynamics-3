@@ -10,6 +10,7 @@
                 <time>{{ post.time_str }}</time>
                 {% if post.is_charge %}<span class="badge-charge">充电专属</span>{% endif %}
                 {% if post.kind == 'forward' %}<span class="badge-soft">转发</span>{% endif %}
+                {% if post.image_count == 0 and not post.is_charge %}<span class="badge-soft">无图动态</span>{% endif %}
             </div>
         </div>
         <a class="bili-link" href="{{ post.bili_url }}" target="_blank" rel="noopener">原动态 ↗</a>
@@ -31,8 +32,8 @@
                 <span class="image-zoom">查看大图</span>
             </button>
             {% else %}
-            <div class="image-cell is-missing" title="图片本地缺失：{{ image.status }}">
-                <span>图片失效</span>
+            <div class="image-cell is-missing" title="{{ image.status_label }}">
+                <span>{{ image.status_label }}</span>
             </div>
             {% endif %}
         {% endfor %}
@@ -46,10 +47,18 @@
         </div>
         <a href="{{ post.bili_url }}" target="_blank" rel="noopener">去 B 站看看 ↗</a>
     </div>
+    {% elif post.image_count == 0 %}
+    <div class="no-image-note">这条动态没有图片，仅保留文字内容。</div>
     {% endif %}
 
     <footer class="post-foot">
-        <span class="foot-stat">{{ post.image_count }} 张图片{% if post.ok_images != post.image_count %} · 本地 {{ post.ok_images }} 张{% endif %}</span>
+        <span class="foot-stat">
+            {% if post.image_count %}
+            {{ post.image_count }} 张图片{% if post.ok_images != post.image_count %} · 本地 {{ post.ok_images }} 张{% endif %}
+            {% else %}
+            无图片
+            {% endif %}
+        </span>
         <a href="{{ post.bili_url }}" target="_blank" rel="noopener">查看原动态</a>
     </footer>
 </article>

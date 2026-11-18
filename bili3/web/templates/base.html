@@ -62,7 +62,7 @@
                 <span class="avatar avatar-all">全</span>
                 <span class="side-user-info">
                     <span class="side-user-name">全部动态</span>
-                    <span class="side-user-count">{{ stats.image_posts }} 条</span>
+                    <span class="side-user-count">{{ stats.posts if web_settings.show_empty_posts else stats.image_posts }} 条</span>
                 </span>
             </a>
             {% for u in users %}
@@ -72,7 +72,7 @@
                 </span>
                 <span class="side-user-info">
                     <span class="side-user-name" title="{{ u.name }}">{{ u.name }}</span>
-                    <span class="side-user-count">{{ u.image_post_count }} 条</span>
+                    <span class="side-user-count">{{ u.post_count if web_settings.show_empty_posts else u.image_post_count }} 条</span>
                 </span>
             </a>
             {% endfor %}

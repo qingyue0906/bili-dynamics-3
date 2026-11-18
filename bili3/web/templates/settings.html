@@ -104,6 +104,8 @@
                 <option value="pages" {% if web.default_load == 'pages' %}selected{% endif %}>分页</option>
             </select>
         </label>
+        <label class="check"><input type="checkbox" name="show_empty_posts" {% if web.show_empty_posts %}checked{% endif %}> 动态模式显示无图动态</label>
+        <label class="check"><input type="checkbox" name="show_missing_images" {% if web.show_missing_images %}checked{% endif %}> 图片模式显示失效占位</label>
         <div class="form-actions span-2">
             <button class="btn-primary" type="submit">保存显示设置</button>
         </div>

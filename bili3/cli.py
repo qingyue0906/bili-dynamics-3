@@ -251,11 +251,12 @@ def _cmd_stats(args, config) -> int:
         stats = db.stats()
         print(f"用户：{stats['users']}（启用 {stats['enabled_users']}，头像 {stats['avatars']}）")
         print(
-            f"动态：{stats['posts']}（有图 {stats['image_posts']}，充电占位 {stats['charge_posts']}）"
+            f"动态：{stats['posts']}（有图 {stats['image_posts']}，无图 {stats['empty_posts']}，"
+            f"充电占位 {stats['charge_posts']}）"
         )
         print(
-            f"图片：{stats['images']}（本地 {stats['ok_images']}，缺失/失败 {stats['missing_images']}，"
-            f"待下载 {stats['pending_images']}，失效 {stats['dead_images']}）"
+            f"图片：{stats['images']}（本地 {stats['ok_images']}，占位 {stats['placeholder_images']}，"
+            f"缺失/失败 {stats['missing_images']}，待下载 {stats['pending_images']}，失效 {stats['dead_images']}）"
         )
         print(f"本地图片占用：{human_size(stats['bytes'])}")
         print("")

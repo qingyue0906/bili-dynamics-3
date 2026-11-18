@@ -88,7 +88,9 @@
                 image_page_size: data.get('image_page_size'),
                 default_view: data.get('default_view'),
                 default_sort: data.get('default_sort'),
-                default_load: data.get('default_load')
+                default_load: data.get('default_load'),
+                show_empty_posts: data.get('show_empty_posts') === 'on',
+                show_missing_images: data.get('show_missing_images') === 'on'
             };
             try {
                 await api('/api/settings/options', { web });

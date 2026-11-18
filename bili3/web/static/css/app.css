@@ -1351,3 +1351,35 @@ body.lb-open { overflow: hidden; }
     .page-btn, .page-link { min-width: 30px; height: 30px; padding: 0 7px; }
     .page-info { width: 100%; text-align: center; margin-left: 0; }
 }
+
+.album-item.is-missing {
+    cursor: default;
+    border: 1px dashed var(--line);
+    background:
+        linear-gradient(135deg, transparent 46%, var(--line-soft) 46%, var(--line-soft) 54%, transparent 54%),
+        var(--bg-soft);
+}
+
+.album-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.album-placeholder strong { color: var(--text-2); font-size: 11px; }
+.album-item.is-missing .album-overlay { opacity: 1; transform: none; padding-top: 16px; }
+
+.no-image-note {
+    margin-top: 11px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-soft);
+    color: var(--muted);
+    font-size: 12px;
+}

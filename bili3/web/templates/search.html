@@ -7,7 +7,7 @@
             {% if mode == 'images' %}
             找到 {{ total }} 张图片{% if current_uid %} · 已按作者筛选{% endif %}
             {% else %}
-            找到 {{ total }} 条结果{% if current_uid %} · 已按作者筛选{% endif %}
+            找到 {{ total }} 条动态{% if current_uid %} · 已按作者筛选{% endif %}
             {% endif %}
         </p>
     </div>
@@ -27,7 +27,6 @@
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="mode" value="{{ mode }}">
     <input type="hidden" name="load" value="{{ load_mode }}">
-    <label class="check"><input type="checkbox" name="charge" value="1" {% if include_charge %}checked{% endif %}> 显示充电占位</label>
     <button class="btn-search" type="submit">筛选</button>
 </form>
 

@@ -12,6 +12,8 @@ def test_settings_store_defaults_and_mask(tmp_path):
     web = store.web()
     assert sync["sleep"] == 5.0
     assert web["host"] == "127.0.0.1"
+    assert web["show_empty_posts"] is True
+    assert web["show_missing_images"] is True
     assert store.masked_cookies()["configured"] is False
 
     store.save_cookies("sess", "jct", "buvid")

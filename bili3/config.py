@@ -38,6 +38,8 @@ class WebConfig:
     default_view: str = "dynamic"
     default_sort: str = "desc"
     default_load: str = "infinite"
+    show_empty_posts: bool = True
+    show_missing_images: bool = True
     auto_open: bool = True
     debug: bool = False
 
@@ -261,6 +263,8 @@ def load_config(
         default_view=str(web_values["default_view"]),
         default_sort=str(web_values["default_sort"]),
         default_load=str(web_values["default_load"]),
+        show_empty_posts=bool(web_values["show_empty_posts"]),
+        show_missing_images=bool(web_values["show_missing_images"]),
         auto_open=bool(web_values["auto_open"] if auto_open is None else auto_open),
         debug=bool(web_values["debug"] if debug is None else debug),
     )
