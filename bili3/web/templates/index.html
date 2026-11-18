@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+    <div>
+        <h1>全部动态</h1>
+        <p class="sub">共 {{ stats.image_posts }} 条图文、{{ stats.ok_images }} 张本地图片{% if stats.charge_posts %}，另有 {{ stats.charge_posts }} 条充电专属占位{% endif %}</p>
+    </div>
+    <div class="view-toggle">
+        <a class="active" href="{{ url_for('index') }}">最新</a>
+    </div>
+</section>
+
+<div class="feed" id="feed"
+     data-next-offset="{{ next_offset }}"
+     data-uid=""
+     data-query=""
+     data-sort="desc"
+     data-charge="0">
+    <div id="postList">
+        {% include "partials/post_list.html" %}
+    </div>
+    <div class="empty" id="feedEmpty" {% if posts %}hidden{% endif %}>
+        <div class="empty-mark">◌</div>
+        <p>这里还没有图文动态</p>
+        <p class="sub">运行 <code>python -m bili3 sync --all</code> 开始同步</p>
+    </div>
+    <div class="feed-more" id="feedMore" {% if not has_more %}hidden{% endif %}>
+        <button class="btn-more" type="button" id="loadMore">加载更多</button>
+    </div>
+    <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>
+</div>
+{% endblock %}

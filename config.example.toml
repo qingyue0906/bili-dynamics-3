@@ -1,0 +1,31 @@
+[general]
+# 数据目录，包含 bili.db、images、thumbnails、exports、logs
+data_dir = "data"
+# 用户列表，格式：昵称: uid；也支持只写 uid
+user_list = "user_list.txt"
+
+# 翻页间隔（秒）。B 站风控较严，默认 5 秒，不建议低于 3 秒。
+sleep = 5.0
+# 随机抖动比例，0.2 表示 5s 会在 4~6s 之间波动
+jitter = 0.2
+
+# 单次 HTTP 超时 / 连接超时（秒）
+timeout = 60
+connect_timeout = 15
+# API / 下载失败重试次数
+retries = 3
+# 图片并发下载数
+download_concurrency = 4
+
+# 同步完成后导出每用户 v3 JSON 备份
+export_json = true
+# 默认每次运行的页数/图片上限，0 为不限；命令行可覆盖
+max_pages = 0
+max_images = 0
+
+[web]
+host = "127.0.0.1"
+port = 5000
+page_size = 24
+thumbnail_width = 400
+debug = false

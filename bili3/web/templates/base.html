@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title or '动态画廊' }} · 动态画廊</title>
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem('theme');
+                var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.dataset.theme = theme;
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="{{ url_for('index') }}" aria-label="动态画廊首页">
+            <span class="brand-mark">动</span>
+            <span class="brand-text">动态画廊</span>
+        </a>
+        <form class="search-form" action="{{ url_for('search') }}" method="get" role="search">
+            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+            <input type="search" name="q" value="{{ query or '' }}" placeholder="搜索动态、描述..." autocomplete="off" aria-label="搜索">
+        </form>
+        <div class="top-actions">
+            <span class="stat-pill">{{ stats.image_posts }} 条图文</span>
+            <button class="icon-btn" id="themeToggle" type="button" aria-label="切换深色模式" title="切换深色模式">
+                <span class="theme-icon">☾</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="side-title">
+            <span>作者</span>
+            <span class="side-total">{{ users|length }}</span>
+        </div>
+        <nav class="side-nav">
+            <a class="side-user {% if not current_uid %}active{% endif %}" href="{{ url_for('index') }}">
+                <span class="avatar avatar-all">全</span>
+                <span class="side-user-info">
+                    <span class="side-user-name">全部动态</span>
+                    <span class="side-user-count">{{ stats.image_posts }} 条</span>
+                </span>
+            </a>
+            {% for u in users %}
+            <a class="side-user {% if current_uid == u.uid %}active{% endif %}" href="{{ url_for('user_page', uid=u.uid) }}">
+                <span class="avatar" style="--hue: {{ u.uid % 360 }}">
+                    {% if u.avatar_url %}<img src="{{ u.avatar_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">{% endif %}
+                    <span class="avatar-fallback">{{ (u.name or u.uid|string)[:1] }}</span>
+                </span>
+                <span class="side-user-info">
+                    <span class="side-user-name" title="{{ u.name }}">{{ u.name }}</span>
+                    <span class="side-user-count">{{ u.image_post_count }} 条</span>
+                </span>
+            </a>
+            {% endfor %}
+        </nav>
+        <div class="side-footer">
+            <span>{{ stats.ok_images }} 张本地图片</span>
+            <span>{{ stats.bytes|filesizeformat }}</span>
+        </div>
+    </aside>
+
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<div id="lightbox" class="lightbox" hidden aria-hidden="true" role="dialog" aria-label="图片查看器">
+    <div class="lb-backdrop" data-close></div>
+    <button class="lb-close" type="button" data-close aria-label="关闭">×</button>
+    <button class="lb-arrow lb-prev" id="lbPrev" type="button" aria-label="上一张">‹</button>
+    <div class="lb-stage"><img id="lbImage" alt=""></div>
+    <button class="lb-arrow lb-next" id="lbNext" type="button" aria-label="下一张">›</button>
+    <div class="lb-bar">
+        <span id="lbCounter" class="lb-counter"></span>
+        <div class="lb-actions">
+            <a id="lbBili" href="#" target="_blank" rel="noopener">查看原动态</a>
+            <a id="lbDownload" href="#" download>下载原图</a>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>

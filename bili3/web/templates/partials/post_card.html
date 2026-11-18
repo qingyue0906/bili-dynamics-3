@@ -1,0 +1,56 @@
+{% set image_count = post.images|length %}
+<article class="post-card" data-dynamic-id="{{ post.dynamic_id }}">
+    <header class="post-head">
+        <a class="avatar post-avatar" href="{{ url_for('user_page', uid=post.uid) }}" style="--hue: {{ post.uid % 360 }}">
+            {% if post.avatar_url %}<img src="{{ post.avatar_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">{% endif %}
+            <span class="avatar-fallback">{{ post.initial or '?' }}</span>
+        </a>
+        <div class="post-meta">
+            <a class="post-author" href="{{ url_for('user_page', uid=post.uid) }}">{{ post.name or post.uid }}</a>
+            <div class="post-sub">
+                <time>{{ post.time_str }}</time>
+                {% if post.is_charge %}<span class="badge-charge">充电专属</span>{% endif %}
+                {% if post.kind == 'forward' %}<span class="badge-soft">转发</span>{% endif %}
+            </div>
+        </div>
+        <a class="bili-link" href="{{ post.bili_url }}" target="_blank" rel="noopener">原动态 ↗</a>
+    </header>
+
+    {% if post.title %}<h2 class="post-title">{{ post.title }}</h2>{% endif %}
+    {% if post.description %}<p class="post-desc">{{ post.description }}</p>{% endif %}
+
+    {% if image_count %}
+    <div class="post-images" data-count="{{ image_count }}" data-bili="{{ post.bili_url }}">
+        {% for image in post.images %}
+            {% if image.ok %}
+            {% set thumb_url = url_for('thumb', image_id=image.id, w=800) if image_count == 1 else url_for('thumb', image_id=image.id) %}
+            <button class="image-cell" type="button" data-full="{{ url_for('media', image_id=image.id) }}" title="查看大图">
+                <img src="{{ thumb_url }}"
+                     {% if image.width and image.height %}width="{{ image.width }}" height="{{ image.height }}"{% endif %}
+                     alt="{{ post.title or post.name or '动态图片' }} {{ loop.index }}"
+                     loading="lazy" decoding="async">
+                <span class="image-zoom">查看大图</span>
+            </button>
+            {% else %}
+            <div class="image-cell is-missing" title="图片本地缺失：{{ image.status }}">
+                <span>图片失效</span>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% elif post.is_charge %}
+    <div class="charge-placeholder">
+        <span class="lock-mark">⌁</span>
+        <div>
+            <strong>充电专属内容</strong>
+            <p>当前 Cookie 无权限读取这条动态的图片</p>
+        </div>
+        <a href="{{ post.bili_url }}" target="_blank" rel="noopener">去 B 站看看 ↗</a>
+    </div>
+    {% endif %}
+
+    <footer class="post-foot">
+        <span class="foot-stat">{{ post.image_count }} 张图片{% if post.ok_images != post.image_count %} · 本地 {{ post.ok_images }} 张{% endif %}</span>
+        <a href="{{ post.bili_url }}" target="_blank" rel="noopener">查看原动态</a>
+    </footer>
+</article>

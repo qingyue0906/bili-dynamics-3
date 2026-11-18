@@ -1,0 +1,182 @@
+(() => {
+    'use strict';
+
+    // ---------------- theme ----------------
+    const root = document.documentElement;
+    const themeBtn = document.getElementById('themeToggle');
+    const themeIcon = themeBtn ? themeBtn.querySelector('.theme-icon') : null;
+
+    function applyTheme(theme) {
+        root.dataset.theme = theme;
+        if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀' : '☾';
+        try { localStorage.setItem('theme', theme); } catch (e) {}
+    }
+
+    if (themeBtn) {
+        applyTheme(root.dataset.theme || 'light');
+        themeBtn.addEventListener('click', () => {
+            applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark');
+        });
+    }
+
+    // ---------------- feed / infinite scroll ----------------
+    const feed = document.getElementById('feed');
+    if (!feed) return;
+
+    const list = document.getElementById('postList');
+    const moreWrap = document.getElementById('feedMore');
+    const moreBtn = document.getElementById('loadMore');
+    const sentinel = document.getElementById('feedSentinel');
+    const empty = document.getElementById('feedEmpty');
+    let nextOffset = Number(feed.dataset.nextOffset || 0);
+    let loading = false;
+
+    function buildUrl(offset) {
+        const params = new URLSearchParams();
+        params.set('offset', String(offset));
+        if (feed.dataset.uid) params.set('uid', feed.dataset.uid);
+        if (feed.dataset.query) params.set('q', feed.dataset.query);
+        if (feed.dataset.sort) params.set('sort', feed.dataset.sort);
+        if (feed.dataset.charge === '1') params.set('charge', '1');
+        return '/api/posts?' + params.toString();
+    }
+
+    async function loadMore() {
+        if (loading || !nextOffset) return;
+        loading = true;
+        if (moreBtn) {
+            moreBtn.disabled = true;
+            moreBtn.textContent = '加载中...';
+        }
+        try {
+            const response = await fetch(buildUrl(nextOffset), { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+            if (data.html) list.insertAdjacentHTML('beforeend', data.html);
+            nextOffset = Number(data.next_offset || 0);
+            feed.dataset.nextOffset = String(nextOffset);
+            if (empty) empty.hidden = true;
+            if (!nextOffset) {
+                if (moreWrap) moreWrap.hidden = true;
+                if (observer) observer.disconnect();
+            }
+        } catch (error) {
+            console.error(error);
+            if (moreBtn) moreBtn.textContent = '加载失败，点击重试';
+        } finally {
+            loading = false;
+            if (moreBtn) {
+                moreBtn.disabled = false;
+                if (nextOffset && moreBtn.textContent !== '加载失败，点击重试') {
+                    moreBtn.textContent = '加载更多';
+                }
+            }
+        }
+    }
+
+    let observer = null;
+    if (moreBtn) moreBtn.addEventListener('click', loadMore);
+    if ('IntersectionObserver' in window && sentinel) {
+        observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) loadMore();
+        }, { rootMargin: '700px 0px' });
+        observer.observe(sentinel);
+    }
+
+    // ---------------- image error fallback ----------------
+    document.addEventListener('error', (event) => {
+        const img = event.target;
+        if (img && img.tagName === 'IMG') {
+            const cell = img.closest('.image-cell');
+            if (cell) cell.classList.add('is-error');
+        }
+    }, true);
+
+    // ---------------- lightbox ----------------
+    const lb = document.getElementById('lightbox');
+    if (!lb) return;
+    const lbImage = document.getElementById('lbImage');
+    const lbCounter = document.getElementById('lbCounter');
+    const lbPrev = document.getElementById('lbPrev');
+    const lbNext = document.getElementById('lbNext');
+    const lbDownload = document.getElementById('lbDownload');
+    const lbBili = document.getElementById('lbBili');
+    let group = [];
+    let index = 0;
+    let biliUrl = '';
+    let lastFocus = null;
+
+    function showImage() {
+        if (!group.length) return;
+        const item = group[index];
+        lbImage.src = item.full;
+        lbCounter.textContent = `${index + 1} / ${group.length}`;
+        lbDownload.href = item.full + '?download=1';
+        if (biliUrl) {
+            lbBili.href = biliUrl;
+            lbBili.hidden = false;
+        } else {
+            lbBili.hidden = true;
+        }
+        lbPrev.hidden = group.length <= 1;
+        lbNext.hidden = group.length <= 1;
+    }
+
+    function openLightbox(cell) {
+        const wrap = cell.closest('.post-images');
+        if (!wrap) return;
+        group = Array.from(wrap.querySelectorAll('.image-cell[data-full]')).map((node) => ({
+            full: node.dataset.full
+        }));
+        index = Math.max(0, group.findIndex((item) => item.full === cell.dataset.full));
+        biliUrl = wrap.dataset.bili || '';
+        lastFocus = document.activeElement;
+        showImage();
+        lb.hidden = false;
+        lb.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('lb-open');
+        const closeBtn = lb.querySelector('.lb-close');
+        if (closeBtn) closeBtn.focus();
+    }
+
+    function closeLightbox() {
+        lb.hidden = true;
+        lb.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('lb-open');
+        lbImage.src = '';
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    function step(delta) {
+        if (group.length <= 1) return;
+        index = (index + delta + group.length) % group.length;
+        showImage();
+    }
+
+    document.addEventListener('click', (event) => {
+        const cell = event.target.closest('.image-cell[data-full]');
+        if (cell) {
+            event.preventDefault();
+            openLightbox(cell);
+            return;
+        }
+        if (event.target.closest('[data-close]')) closeLightbox();
+    });
+
+    if (lbPrev) lbPrev.addEventListener('click', () => step(-1));
+    if (lbNext) lbNext.addEventListener('click', () => step(1));
+
+    document.addEventListener('keydown', (event) => {
+        if (lb.hidden) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeLightbox();
+        } else if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            step(-1);
+        } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            step(1);
+        }
+    });
+})();
