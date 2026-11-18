@@ -42,7 +42,7 @@
                 <p class="sub">修改后对下一个任务生效，不需要重启服务。</p>
             </div>
         </div>
-        <form id="optionsForm" class="form-grid">
+        <form id="syncOptionsForm" class="form-grid">
             <label>翻页间隔（秒）
                 <input type="number" class="input" name="sleep" min="0" max="300" step="0.5" value="{{ sync.sleep }}">
             </label>
@@ -64,37 +64,51 @@
             <label>每次最多图片
                 <input type="number" class="input" name="max_images" min="0" step="1" value="{{ sync.max_images }}">
             </label>
-            <label>Web 每页条数
-                <input type="number" class="input" name="page_size" min="1" max="60" step="1" value="{{ web.page_size }}">
-            </label>
-            <label>图片模式每页
-                <input type="number" class="input" name="image_page_size" min="1" max="120" step="1" value="{{ web.image_page_size }}">
-            </label>
-            <label>默认视图
-                <select class="input" name="default_view">
-                    <option value="dynamic" {% if web.default_view == 'dynamic' %}selected{% endif %}>动态</option>
-                    <option value="images" {% if web.default_view == 'images' %}selected{% endif %}>图片</option>
-                </select>
-            </label>
-            <label>默认排序
-                <select class="input" name="default_sort">
-                    <option value="desc" {% if web.default_sort == 'desc' %}selected{% endif %}>最新</option>
-                    <option value="asc" {% if web.default_sort == 'asc' %}selected{% endif %}>最早</option>
-                </select>
-            </label>
-            <label>默认加载方式
-                <select class="input" name="default_load">
-                    <option value="infinite" {% if web.default_load == 'infinite' %}selected{% endif %}>无限滚动</option>
-                    <option value="pages" {% if web.default_load == 'pages' %}selected{% endif %}>分页</option>
-                </select>
-            </label>
             <label class="check span-2"><input type="checkbox" name="export_json" {% if sync.export_json %}checked{% endif %}> 同步后导出每用户 JSON</label>
             <div class="form-actions span-2">
-                <button class="btn-primary" type="submit">保存参数</button>
+                <button class="btn-primary" type="submit">保存同步参数</button>
             </div>
         </form>
     </section>
 </div>
+
+<section class="panel">
+    <div class="panel-head">
+        <div>
+            <h2>WebUI 显示</h2>
+            <p class="sub">只影响页面展示和分页方式，不影响抓取、下载和文件。</p>
+        </div>
+    </div>
+    <form id="webOptionsForm" class="form-grid">
+        <label>动态模式每页条数
+            <input type="number" class="input" name="page_size" min="1" max="60" step="1" value="{{ web.page_size }}">
+        </label>
+        <label>图片模式每页数量
+            <input type="number" class="input" name="image_page_size" min="1" max="120" step="1" value="{{ web.image_page_size }}">
+        </label>
+        <label>默认视图
+            <select class="input" name="default_view">
+                <option value="dynamic" {% if web.default_view == 'dynamic' %}selected{% endif %}>动态</option>
+                <option value="images" {% if web.default_view == 'images' %}selected{% endif %}>图片</option>
+            </select>
+        </label>
+        <label>默认排序
+            <select class="input" name="default_sort">
+                <option value="desc" {% if web.default_sort == 'desc' %}selected{% endif %}>最新</option>
+                <option value="asc" {% if web.default_sort == 'asc' %}selected{% endif %}>最早</option>
+            </select>
+        </label>
+        <label>默认加载方式
+            <select class="input" name="default_load">
+                <option value="infinite" {% if web.default_load == 'infinite' %}selected{% endif %}>无限滚动</option>
+                <option value="pages" {% if web.default_load == 'pages' %}selected{% endif %}>分页</option>
+            </select>
+        </label>
+        <div class="form-actions span-2">
+            <button class="btn-primary" type="submit">保存显示设置</button>
+        </div>
+    </form>
+</section>
 
 <section class="panel">
     <div class="panel-head">
@@ -119,7 +133,7 @@
             <p class="sub">Cookie、用户列表、任务记录、头像和图片都在 data/ 下；data/ 不会进入 Git。</p>
         </div>
     </div>
-    <p class="prose">旧版根目录的 <code>.env</code> 和 <code>user_list.txt</code> 会在首次启动时自动迁移到 <code>data/config/</code> 与 <code>data/legacy/</code>。如果旧图片目录还在项目外，WebUI 仍可正常引用；需要搬进 v3 时使用 CLI 的 <code>migrate --move</code>。</p>
+    <p class="prose">旧版根目录的 <code>.env</code> 和 <code>user_list.txt</code> 已迁移到 <code>data/config/</code> 与 <code>data/legacy/</code>；v2 图片也已搬到 <code>data/images/</code>，当前 v3 不依赖 v2 图片目录。</p>
 </section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/settings.js') }}" defer></script>{% endblock %}

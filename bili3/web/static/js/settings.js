@@ -54,11 +54,11 @@
         });
     }
 
-    const options = document.getElementById('optionsForm');
-    if (options) {
-        options.addEventListener('submit', async (event) => {
+    const syncOptions = document.getElementById('syncOptionsForm');
+    if (syncOptions) {
+        syncOptions.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const data = new FormData(options);
+            const data = new FormData(syncOptions);
             const sync = {
                 sleep: data.get('sleep'),
                 jitter: data.get('jitter'),
@@ -69,6 +69,20 @@
                 max_images: data.get('max_images'),
                 export_json: data.get('export_json') === 'on'
             };
+            try {
+                await api('/api/settings/options', { sync });
+                toast('同步参数已保存', 'ok');
+            } catch (error) {
+                toast(error.message, 'error');
+            }
+        });
+    }
+
+    const webOptions = document.getElementById('webOptionsForm');
+    if (webOptions) {
+        webOptions.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const data = new FormData(webOptions);
             const web = {
                 page_size: data.get('page_size'),
                 image_page_size: data.get('image_page_size'),
@@ -77,8 +91,8 @@
                 default_load: data.get('default_load')
             };
             try {
-                await api('/api/settings/options', { sync, web });
-                toast('参数已保存', 'ok');
+                await api('/api/settings/options', { web });
+                toast('显示设置已保存', 'ok');
             } catch (error) {
                 toast(error.message, 'error');
             }
