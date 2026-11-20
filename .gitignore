@@ -9,3 +9,4 @@ archive/
 testdata/
 testdata-*/
 *.log
+user_list*.txt
